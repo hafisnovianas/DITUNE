@@ -7,14 +7,12 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 
 ## [Unreleased]
 
-### Security
-- Mencegah kebocoran kredensial default dengan menghentikan penyuntikan string API Key dan Client ID ke elemen input DOM pada modal pengaturan.
-- Menambahkan validasi isolasi kunci kustom di `localStorage` agar tidak menimpa atau mengekspos kredensial lingkungan.
+### Removed
+- Menghapus seluruh form input kredensial kustom (Client ID & API Key) dari modal Pengaturan untuk menyederhanakan pengalaman pengguna murni ke fungsi pemutar musik (*consumer-focused*).
+- Menghapus dependensi dan logika pembacaan/penyimpanan kredensial di `localStorage`.
 
 ### Changed
-- Merapikan modal Pengaturan dengan memindahkan input konfigurasi teknis Google Cloud ke dalam akordion tersembunyi (*Opsi Lanjutan / Developer Options*).
-- Menambahkan badge status koneksi Google Cloud real-time (*Kredensial Bawaan Aktif* / *Kredensial Kustom Aktif* / *Belum Dikonfigurasi*).
-- Menambahkan tombol "Reset ke Bawaan" untuk mempermudah pengguna menghapus kredensial kustom lokal.
+- Menyederhanakan modal Pengaturan agar murni menampilkan status koneksi Google Drive, manajemen memori cache musik offline, dan informasi aplikasi.
 
 ### Added
 - Inisialisasi awal proyek pemutar musik DITUNE berbasis web (*client-side*) menggunakan Vite, Vanilla JS, Tailwind CSS, dan Lucide Icons.

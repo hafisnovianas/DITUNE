@@ -13,62 +13,24 @@ let currentAccessToken = null;
 let tokenExpiresAt = 0;
 
 /**
- * Get credentials from localStorage or fallback to .env
+ * Clean up any legacy custom credentials from browser localStorage
+ */
+if (typeof localStorage !== 'undefined') {
+  localStorage.removeItem('ditune_client_id');
+  localStorage.removeItem('ditune_api_key');
+}
+
+/**
+ * Get Google API credentials from project environment (.env)
  */
 export function getCredentials() {
-  const customClientId = typeof localStorage !== 'undefined' ? localStorage.getItem('ditune_client_id') : null;
-  const customApiKey = typeof localStorage !== 'undefined' ? localStorage.getItem('ditune_api_key') : null;
-
-  const envClientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '';
-  const envApiKey = import.meta.env?.VITE_GOOGLE_API_KEY || '';
-
-  const isCustom = Boolean((customClientId && customClientId.trim()) || (customApiKey && customApiKey.trim()));
+  const clientId = (import.meta.env?.VITE_GOOGLE_CLIENT_ID || '').trim();
+  const apiKey = (import.meta.env?.VITE_GOOGLE_API_KEY || '').trim();
 
   return {
-    clientId: (customClientId !== null && customClientId !== '' ? customClientId : envClientId).trim(),
-    apiKey: (customApiKey !== null && customApiKey !== '' ? customApiKey : envApiKey).trim(),
-    isCustom,
-    hasDefault: Boolean(envClientId && envApiKey),
-    customClientId: customClientId || '',
-    customApiKey: customApiKey || '',
+    clientId,
+    apiKey,
   };
-}
-
-/**
- * Save custom credentials to localStorage
- */
-export function saveCredentials(clientId, apiKey) {
-  if (typeof localStorage !== 'undefined') {
-    const trimmedId = clientId.trim();
-    const trimmedKey = apiKey.trim();
-
-    if (trimmedId) {
-      localStorage.setItem('ditune_client_id', trimmedId);
-    } else {
-      localStorage.removeItem('ditune_client_id');
-    }
-
-    if (trimmedKey) {
-      localStorage.setItem('ditune_api_key', trimmedKey);
-    } else {
-      localStorage.removeItem('ditune_api_key');
-    }
-  }
-  // Reset token client to re-initialize with new client ID
-  tokenClient = null;
-  currentAccessToken = null;
-}
-
-/**
- * Reset credentials to default .env
- */
-export function resetCredentials() {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem('ditune_client_id');
-    localStorage.removeItem('ditune_api_key');
-  }
-  tokenClient = null;
-  currentAccessToken = null;
 }
 
 /**
