@@ -1,9 +1,9 @@
 /**
  * DITUNE Google Drive & Google Identity Services (GIS) Module
- * Handles OAuth 2.0 (scope: drive.file), Google Picker API, and audio streaming.
+ * Handles OAuth 2.0 (scope: drive.readonly), Google Picker API, and audio streaming.
  */
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 
 let gisLoaded = false;

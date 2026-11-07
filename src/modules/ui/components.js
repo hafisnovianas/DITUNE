@@ -282,7 +282,7 @@ export function renderAppShell() {
               </div>
             </div>
             <p class="text-xs text-zinc-400 leading-relaxed">
-              DITUNE terintegrasi resmi dengan Google Identity Services & Google Picker menggunakan scope aman <code class="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">drive.file</code>. Lagu diputar langsung dari folder Google Drive Anda secara privat tanpa perantara.
+              DITUNE terintegrasi resmi dengan Google Identity Services & Google Picker menggunakan scope aman <code class="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">drive.readonly</code>. Lagu diputar langsung dari folder Google Drive Anda secara privat tanpa perantara.
             </p>
           </div>
 
