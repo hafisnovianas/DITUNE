@@ -35,6 +35,7 @@ import {
   AlertCircle,
   User,
   Radio,
+  Loader,
 } from 'lucide';
 
 import {
@@ -96,6 +97,7 @@ export function refreshLucideIcons() {
       AlertCircle,
       User,
       Radio,
+      Loader,
     },
   });
 }
