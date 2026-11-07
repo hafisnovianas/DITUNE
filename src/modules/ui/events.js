@@ -94,6 +94,7 @@ export function refreshLucideIcons() {
       Info,
       AlertCircle,
       User,
+      Radio,
     },
   });
 }

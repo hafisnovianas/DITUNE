@@ -7,6 +7,10 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 
 ## [Unreleased]
 
+### Fixed
+- Memperbaiki parsing metadata ID3 di browser dengan menginisialisasi polyfill `Buffer` global untuk pustaka `music-metadata-browser`.
+- Memperbaiki pendaftaran ikon `Radio` pada objek pembuat ikon Lucide untuk menghilangkan peringatan konsol.
+
 ### Removed
 - Menghapus seluruh form input kredensial kustom (Client ID & API Key) dari modal Pengaturan untuk menyederhanakan pengalaman pengguna murni ke fungsi pemutar musik (*consumer-focused*).
 - Menghapus dependensi dan logika pembacaan/penyimpanan kredensial di `localStorage`.

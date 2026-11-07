@@ -2,6 +2,16 @@
  * DITUNE Audio Metadata Parser
  * Extracts ID3/Vorbis/MP4 tags and embedded cover art using music-metadata-browser.
  */
+import { Buffer } from 'buffer';
+
+// Browser global polyfill for music-metadata-browser
+if (typeof globalThis !== 'undefined' && !globalThis.Buffer) {
+  globalThis.Buffer = Buffer;
+}
+if (typeof window !== 'undefined' && !window.Buffer) {
+  window.Buffer = Buffer;
+}
+
 import * as mmb from 'music-metadata-browser';
 
 /**
