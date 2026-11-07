@@ -5,6 +5,8 @@
 
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
+const SESSION_TOKEN_KEY = 'ditune_oauth_token';
+const SESSION_EXPIRES_KEY = 'ditune_oauth_expires_at';
 
 let gisLoaded = false;
 let gapiLoaded = false;
@@ -78,12 +80,43 @@ export async function initGoogleAuth() {
 }
 
 /**
+ * Clear stored session token
+ */
+export function clearSessionToken() {
+  currentAccessToken = null;
+  tokenExpiresAt = 0;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      sessionStorage.removeItem(SESSION_EXPIRES_KEY);
+    }
+  } catch (e) {
+    console.debug('Failed to clear sessionStorage token:', e);
+  }
+}
+
+/**
  * Get or request a valid access token
  */
 export async function getAccessToken(interactive = true) {
-  // If token is still valid (with 60s buffer)
+  // If token is still valid in memory (with 60s buffer)
   if (currentAccessToken && Date.now() < tokenExpiresAt - 60000) {
     return currentAccessToken;
+  }
+
+  // Restore from sessionStorage if still valid
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
+      const savedExpires = Number(sessionStorage.getItem(SESSION_EXPIRES_KEY)) || 0;
+      if (savedToken && Date.now() < savedExpires - 60000) {
+        currentAccessToken = savedToken;
+        tokenExpiresAt = savedExpires;
+        return currentAccessToken;
+      }
+    }
+  } catch (e) {
+    console.debug('Failed to read sessionStorage token:', e);
   }
 
   const { clientId } = getCredentials();
@@ -114,6 +147,16 @@ export async function getAccessToken(interactive = true) {
         currentAccessToken = resp.access_token;
         const expiresInSec = Number(resp.expires_in) || 3600;
         tokenExpiresAt = Date.now() + expiresInSec * 1000;
+
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
+            sessionStorage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
+          }
+        } catch (e) {
+          console.debug('Failed to save sessionStorage token:', e);
+        }
+
         resolve(currentAccessToken);
       };
 
@@ -308,6 +351,7 @@ export async function downloadDriveAudioFile(fileId, onProgress = null) {
 
   // If unauthorized, retry once with refreshed interactive token
   if (resp.status === 401) {
+    clearSessionToken();
     token = await getAccessToken(true);
     resp = await fetch(url, {
       headers: {

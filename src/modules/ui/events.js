@@ -51,6 +51,7 @@ import {
   hasCredentials,
   openGooglePicker,
   downloadDriveAudioFile,
+  clearSessionToken,
 } from '../auth/gdrive.js';
 import { createDemoTracks } from '../player/demoTracks.js';
 import { formatDuration, parseAudioMetadata } from '../parser/metadata.js';
@@ -637,6 +638,7 @@ export class UIController {
     // Reset All Library Button
     document.getElementById('btn-reset-library')?.addEventListener('click', async () => {
       if (confirm('PERINGATAN: Semua lagu dan cache di DITUNE akan dihapus total. Lanjutkan?')) {
+        clearSessionToken();
         await clearAllData();
         this.engine.pause();
         this.engine.playlist = [];
