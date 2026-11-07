@@ -22,9 +22,15 @@ export function getCredentials() {
   const envClientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '';
   const envApiKey = import.meta.env?.VITE_GOOGLE_API_KEY || '';
 
+  const isCustom = Boolean((customClientId && customClientId.trim()) || (customApiKey && customApiKey.trim()));
+
   return {
-    clientId: (customClientId !== null ? customClientId : envClientId).trim(),
-    apiKey: (customApiKey !== null ? customApiKey : envApiKey).trim(),
+    clientId: (customClientId !== null && customClientId !== '' ? customClientId : envClientId).trim(),
+    apiKey: (customApiKey !== null && customApiKey !== '' ? customApiKey : envApiKey).trim(),
+    isCustom,
+    hasDefault: Boolean(envClientId && envApiKey),
+    customClientId: customClientId || '',
+    customApiKey: customApiKey || '',
   };
 }
 
@@ -33,10 +39,34 @@ export function getCredentials() {
  */
 export function saveCredentials(clientId, apiKey) {
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('ditune_client_id', clientId.trim());
-    localStorage.setItem('ditune_api_key', apiKey.trim());
+    const trimmedId = clientId.trim();
+    const trimmedKey = apiKey.trim();
+
+    if (trimmedId) {
+      localStorage.setItem('ditune_client_id', trimmedId);
+    } else {
+      localStorage.removeItem('ditune_client_id');
+    }
+
+    if (trimmedKey) {
+      localStorage.setItem('ditune_api_key', trimmedKey);
+    } else {
+      localStorage.removeItem('ditune_api_key');
+    }
   }
   // Reset token client to re-initialize with new client ID
+  tokenClient = null;
+  currentAccessToken = null;
+}
+
+/**
+ * Reset credentials to default .env
+ */
+export function resetCredentials() {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('ditune_client_id');
+    localStorage.removeItem('ditune_api_key');
+  }
   tokenClient = null;
   currentAccessToken = null;
 }

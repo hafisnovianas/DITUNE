@@ -49,6 +49,7 @@ import {
 import {
   getCredentials,
   saveCredentials,
+  resetCredentials,
   hasCredentials,
   openGooglePicker,
   downloadDriveAudioFile,
@@ -623,13 +624,38 @@ export class UIController {
     document.getElementById('btn-open-settings-mobile')?.addEventListener('click', openSettings);
     document.getElementById('btn-close-settings')?.addEventListener('click', () => this.closeSettingsModal());
 
-    // Save Credentials Button
+    // Toggle Advanced Developer Settings (Accordion)
+    document.getElementById('btn-toggle-advanced-settings')?.addEventListener('click', () => {
+      const section = document.getElementById('section-advanced-settings');
+      const chevron = document.getElementById('icon-chevron-advanced');
+      if (section) {
+        section.classList.toggle('hidden');
+        if (chevron) {
+          chevron.classList.toggle('rotate-180');
+        }
+      }
+    });
+
+    // Save Custom Credentials Button
     document.getElementById('btn-save-credentials')?.addEventListener('click', () => {
       const clientId = document.getElementById('input-client-id')?.value || '';
       const apiKey = document.getElementById('input-api-key')?.value || '';
-      saveCredentials(clientId, apiKey);
-      showToast('Kredensial Google berhasil disimpan!', 'success');
-      this.closeSettingsModal();
+
+      if (!clientId.trim() && !apiKey.trim()) {
+        resetCredentials();
+        showToast('Kredensial kustom dihapus. Menggunakan setelan bawaan DITUNE.', 'info');
+      } else {
+        saveCredentials(clientId, apiKey);
+        showToast('Kredensial kustom berhasil disimpan di browser Anda!', 'success');
+      }
+      this.openSettingsModal(); // Refresh view state
+    });
+
+    // Reset Custom Credentials Button
+    document.getElementById('btn-reset-credentials')?.addEventListener('click', () => {
+      resetCredentials();
+      showToast('Kredensial kustom di-reset ke bawaan DITUNE.', 'info');
+      this.openSettingsModal(); // Refresh view state
     });
 
     // Clear Audio Cache Button
@@ -727,12 +753,42 @@ export class UIController {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
-    const { clientId, apiKey } = getCredentials();
+    const { customClientId, customApiKey, isCustom, hasDefault } = getCredentials();
     const inputClient = document.getElementById('input-client-id');
     const inputKey = document.getElementById('input-api-key');
+    const badgeStatus = document.getElementById('status-credential-badge');
+    const btnResetCreds = document.getElementById('btn-reset-credentials');
 
-    if (inputClient) inputClient.value = clientId;
-    if (inputKey) inputKey.value = apiKey;
+    // SECURITY: NEVER place the secret default .env credentials into the DOM input elements!
+    // Only display custom credentials if user explicitly entered them.
+    if (inputClient) inputClient.value = customClientId || '';
+    if (inputKey) inputKey.value = customApiKey || '';
+
+    if (btnResetCreds) {
+      btnResetCreds.style.display = isCustom ? 'block' : 'none';
+    }
+
+    if (badgeStatus) {
+      if (isCustom) {
+        badgeStatus.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+            Kredensial Kustom Aktif
+          </span>`;
+      } else if (hasDefault) {
+        badgeStatus.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Kredensial Bawaan Aktif
+          </span>`;
+      } else {
+        badgeStatus.innerHTML = `
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            Kredensial Belum Dikonfigurasi
+          </span>`;
+      }
+    }
 
     this.updateStorageInfo();
 

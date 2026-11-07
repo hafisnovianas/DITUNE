@@ -7,6 +7,15 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 
 ## [Unreleased]
 
+### Security
+- Mencegah kebocoran kredensial default dengan menghentikan penyuntikan string API Key dan Client ID ke elemen input DOM pada modal pengaturan.
+- Menambahkan validasi isolasi kunci kustom di `localStorage` agar tidak menimpa atau mengekspos kredensial lingkungan.
+
+### Changed
+- Merapikan modal Pengaturan dengan memindahkan input konfigurasi teknis Google Cloud ke dalam akordion tersembunyi (*Opsi Lanjutan / Developer Options*).
+- Menambahkan badge status koneksi Google Cloud real-time (*Kredensial Bawaan Aktif* / *Kredensial Kustom Aktif* / *Belum Dikonfigurasi*).
+- Menambahkan tombol "Reset ke Bawaan" untuk mempermudah pengguna menghapus kredensial kustom lokal.
+
 ### Added
 - Inisialisasi awal proyek pemutar musik DITUNE berbasis web (*client-side*) menggunakan Vite, Vanilla JS, Tailwind CSS, dan Lucide Icons.
 - Integrasi Google Identity Services (GIS) dan Google Picker API dengan *scope* minimal `drive.file` untuk memilih folder musik dari Google Drive pengguna secara aman dan menjaga privasi.
