@@ -1410,7 +1410,11 @@ export class UIController {
           <span>${percent}%</span>
         </span>
         <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${durationText}</span>
+        <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${trackId}" title="Opsi Lagu">
+          <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
+        </button>
       `;
+      refreshLucideIcons();
     }
   }
 
