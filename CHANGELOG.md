@@ -8,6 +8,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Fixed
+- Mencegah reset status cache dan penghapusan metadata lagu lama saat memilih folder Google Drive berulang melalui mekanisme Smart Merge berbasis ID file.
 - Memperbaiki parsing metadata ID3 di browser dengan menginisialisasi polyfill `Buffer` global untuk pustaka `music-metadata-browser`.
 - Memperbaiki pendaftaran ikon `Radio` pada objek pembuat ikon Lucide untuk menghilangkan peringatan konsol.
 

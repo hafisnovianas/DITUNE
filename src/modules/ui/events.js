@@ -41,6 +41,7 @@ import {
   getAllTracks,
   saveTracks,
   saveAudioBlob,
+  getAudioBlob,
   saveCover,
   getStorageStats,
   clearAllCache,
@@ -788,27 +789,67 @@ export class UIController {
         return;
       }
 
-      showToast(`Menambahkan ${pickedFiles.length} file ke library DITUNE...`, 'success');
+      showToast(`Menyinkronkan ${pickedFiles.length} file dengan library DITUNE...`, 'info');
 
-      // Create initial track records
-      const newTracks = pickedFiles.map((file) => ({
-        id: file.id,
-        name: file.name,
-        title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
-        artist: 'Unknown Artist',
-        album: 'Google Drive',
-        duration: 0,
-        size: file.size || 0,
-        mimeType: file.mimeType || 'audio/mpeg',
-        isCached: false,
-        cachedAt: null,
-        hasCover: false,
-      }));
+      // Fetch existing tracks from IndexedDB to preserve metadata and cache status
+      const existingTracks = await getAllTracks();
+      const existingMap = new Map(existingTracks.map((t) => [t.id, t]));
 
-      await saveTracks(newTracks);
+      let existingCount = 0;
+      let newCount = 0;
+
+      const tracksToSave = [];
+
+      for (const file of pickedFiles) {
+        const existing = existingMap.get(file.id);
+
+        if (existing) {
+          // Track already exists: preserve parsed ID3 metadata, cover, and cache status
+          let isCached = existing.isCached;
+          if (!isCached) {
+            const blob = await getAudioBlob(file.id);
+            if (blob) isCached = true;
+          }
+
+          tracksToSave.push({
+            ...existing,
+            name: file.name,
+            size: file.size || existing.size,
+            mimeType: file.mimeType || existing.mimeType,
+            isCached,
+          });
+          existingCount++;
+        } else {
+          // New track from Google Drive
+          const blob = await getAudioBlob(file.id);
+          tracksToSave.push({
+            id: file.id,
+            name: file.name,
+            title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
+            artist: 'Unknown Artist',
+            album: 'Google Drive',
+            duration: 0,
+            size: file.size || 0,
+            mimeType: file.mimeType || 'audio/mpeg',
+            isCached: !!blob,
+            cachedAt: blob ? Date.now() : null,
+            hasCover: false,
+          });
+          newCount++;
+        }
+      }
+
+      await saveTracks(tracksToSave);
       await this.reloadTracks();
       this.renderMainContent();
-      showToast(`${pickedFiles.length} lagu berhasil dimasukkan ke library!`, 'success');
+
+      if (existingCount > 0 && newCount > 0) {
+        showToast(`${newCount} lagu baru ditambahkan, ${existingCount} lagu diperbarui & cache offline tetap utuh!`, 'success');
+      } else if (existingCount > 0) {
+        showToast(`${existingCount} lagu diverifikasi, seluruh cache & metadata offline tetap utuh!`, 'success');
+      } else {
+        showToast(`${newCount} lagu berhasil dimasukkan ke library!`, 'success');
+      }
     } catch (err) {
       console.error('Picker error:', err);
       if (err.message === 'CONFIG_NEEDED') {

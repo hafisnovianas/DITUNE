@@ -1,3 +1,3 @@
 - [x] ~~lagu contoh hapus aja fiturnya~~ (Selesai)
 - [x] ~~ketika sedang download lagu tidak terlihat progressnya, dikira macet~~ (Selesai)
-- [ ] ketika pilih folder lagi bahkan folder yang sama, semua lagu yang sebelumnya hilang dan unduh baru, solusinya?
+- [x] ~~ketika pilih folder lagi bahkan folder yang sama, semua lagu yang sebelumnya hilang dan unduh baru, solusinya?~~ (Selesai - Smart Merge & Cache Preservation)
