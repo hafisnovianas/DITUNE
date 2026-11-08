@@ -301,6 +301,42 @@ export async function setSetting(key, value) {
   });
 }
 
+// ================= IGNORED TRACKS =================
+
+export async function getIgnoredTracks() {
+  const list = await getSetting('ignored_tracks');
+  return Array.isArray(list) ? list : [];
+}
+
+export async function ignoreTrack(track) {
+  const list = await getIgnoredTracks();
+  if (!list.some((item) => item.id === track.id)) {
+    list.push({
+      id: track.id,
+      name: track.name || track.title || 'Unknown Track',
+      title: track.title || track.name || 'Unknown Track',
+      artist: track.artist || 'Unknown Artist',
+      album: track.album || 'Unknown Album',
+      ignoredAt: Date.now(),
+    });
+    await setSetting('ignored_tracks', list);
+  }
+  await deleteTrack(track.id);
+  return true;
+}
+
+export async function unignoreTrack(trackId) {
+  const list = await getIgnoredTracks();
+  const updated = list.filter((t) => t.id !== trackId);
+  await setSetting('ignored_tracks', updated);
+  return true;
+}
+
+export async function clearIgnoredTracks() {
+  await setSetting('ignored_tracks', []);
+  return true;
+}
+
 // ================= STORAGE STATS & MAINTENANCE =================
 
 export async function getStorageStats() {

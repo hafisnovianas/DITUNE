@@ -274,7 +274,24 @@ export function renderAppShell() {
             </div>
           </div>
 
-          <!-- Section 3: Zona Reset -->
+          <!-- Section 3: Lagu yang Disembunyikan -->
+          <div class="pt-5 space-y-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Lagu yang Disembunyikan</span>
+
+            <div class="flex items-center justify-between gap-4 py-1">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-white text-sm">Daftar Abaikan</p>
+                <p class="text-xs text-zinc-400 mt-0.5">
+                  <span id="modal-ignored-count">0 lagu</span> diabaikan dari sinkronisasi Google Drive
+                </p>
+              </div>
+              <button id="btn-manage-ignored" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition cursor-pointer">
+                Kelola
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 4: Zona Reset -->
           <div class="pt-5 space-y-3">
             <div class="flex items-center justify-between gap-4 py-1">
               <div class="min-w-0 flex-1">
@@ -292,6 +309,60 @@ export function renderAppShell() {
             <span>DITUNE v1.0.0</span>
             <span>Dijumper Web</span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ignored Tracks Management Modal -->
+    <div id="ignored-tracks-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <!-- Header -->
+        <div class="p-5 border-b border-zinc-800/80 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h3 class="text-base font-bold text-white">Lagu yang Disembunyikan</h3>
+            <p class="text-xs text-zinc-400 mt-0.5">Lagu di bawah ini tidak akan ditarik saat sinkronisasi Google Drive.</p>
+          </div>
+          <button id="btn-close-ignored-modal" class="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer" title="Tutup">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Body / List -->
+        <div id="ignored-tracks-list" class="p-4 overflow-y-auto space-y-1 flex-1 divide-y divide-zinc-800/60 min-h-[160px]">
+          <!-- Dynamically populated rows -->
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-zinc-800/80 flex items-center justify-between bg-zinc-950/40 flex-shrink-0 text-xs">
+          <button id="btn-restore-all-ignored" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 transition cursor-pointer">
+            Pulihkan Semua
+          </button>
+          <button id="btn-done-ignored-modal" class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold transition cursor-pointer">
+            Selesai
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Dropdown Menu Container (Floating) -->
+    <div id="track-action-menu" class="fixed z-50 hidden bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 w-52 text-xs text-zinc-300 backdrop-blur-md">
+      <!-- Dynamically filled with action items -->
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4">
+        <div>
+          <h4 id="confirm-modal-title" class="text-base font-bold text-white">Konfirmasi</h4>
+          <p id="confirm-modal-desc" class="text-xs text-zinc-400 mt-1 leading-relaxed">Apakah Anda yakin?</p>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button id="btn-confirm-cancel" class="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition cursor-pointer">
+            Batal
+          </button>
+          <button id="btn-confirm-action" class="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold border border-rose-500/30 transition cursor-pointer">
+            Hapus
+          </button>
         </div>
       </div>
     </div>
@@ -341,7 +412,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
 
     return `
       <div 
-        class="track-row group grid grid-cols-[2rem_1fr_7.5rem] md:grid-cols-[2rem_1fr_26%_7.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
+        class="track-row group grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
         data-id="${track.id}"
       >
         <!-- Index / Play indicator -->
@@ -371,10 +442,13 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
           <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.album || 'Unknown Album')}</p>
         </div>
 
-        <!-- Cache Status & Duration -->
-        <div class="track-cache-status flex items-center justify-end gap-3 min-w-0 pr-1">
+        <!-- Cache Status, Duration & Action Menu -->
+        <div class="track-cache-status flex items-center justify-end gap-2.5 min-w-0 pr-1">
           ${cacheIcon}
           <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${formatDuration(track.duration)}</span>
+          <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${track.id}" title="Opsi Lagu">
+            <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
+          </button>
         </div>
       </div>
     `;
@@ -397,11 +471,11 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
       </div>
 
       <!-- Fixed Table Header -->
-      <div class="flex-shrink-0 py-2.5 px-3 pr-5 grid grid-cols-[2rem_1fr_7.5rem] md:grid-cols-[2rem_1fr_26%_7.5rem] items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
+      <div class="flex-shrink-0 py-2.5 px-3 pr-5 grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
         <span class="text-center">#</span>
         <span class="truncate">Judul</span>
         <span class="hidden md:block truncate">Album</span>
-        <span class="text-right pr-1">Durasi</span>
+        <span class="text-right pr-7">Durasi</span>
       </div>
 
       <!-- Scrollable Track Rows -->
@@ -591,7 +665,7 @@ export function removeProgressToast(id) {
   }
 }
 
-function escapeHtml(str = '') {
+export function escapeHtml(str = '') {
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

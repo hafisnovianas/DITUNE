@@ -8,6 +8,12 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Fitur penghapusan lagu dari library dan daftar abaikan (*Ignored Tracks*) berbasis IndexedDB lokal tanpa mengubah file fisik di Google Drive (menggunakan scope `drive.readonly`).
+- Tombol menu aksi titik tiga (`•••`) pada setiap baris lagu dengan dropdown: *Hapus Audio dari Cache Offline*, *Hapus dari Library*, dan tautan *Buka di Google Drive*.
+- Dialog modal konfirmasi ringkas sebelum menghapus lagu dari library.
+- Transisi pemutaran otomatis (`engine.playNext()`) ke trek berikutnya jika lagu yang sedang diputar dihapus oleh pengguna.
+- Pusat pengelolaan *Lagu yang Disembunyikan* di modal Pengaturan untuk melihat dan memulihkan lagu secara individu atau sekaligus (*Pulihkan Semua*).
+- Otomatis melewati (*skip*) file yang tercatat di daftar abaikan saat proses pemindaian dan sinkronisasi Google Drive (`↻ Sinkronkan Lagu`).
 - Animasi batang equalizer audio dinamis (GPU-composited via CSS `transform: scaleY`) pada baris lagu yang sedang aktif diputar, lengkap dengan transisi ikon pause saat di-hover.
 - Dukungan pemindaian dan pemutaran trek audio dari file media berformat `.mp4`, `.m4v`, dan `.webm` dari Google Drive.
 - Dukungan tombol instalasi aplikasi Progressive Web App (PWA) di bilah navigasi header saat aplikasi belum terpasang.
@@ -28,6 +34,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Memperlebar kolom ke-4 pada tabel daftar lagu menjadi `9.5rem` (`grid-cols-[2rem_1fr_9.5rem]` / `md:grid-cols-[2rem_1fr_26%_9.5rem]`) agar memuat badge offline, durasi, dan tombol menu lagu dengan rapi dan presisi.
 - Merombak antarmuka modal Pengaturan dari gaya kartu bertumpuk menjadi tata letak baris bersih (*native row-based preferences*) untuk menghilangkan redundansi visual dan meningkatkan keterbacaan.
 - Mengalihkan penyimpanan token akses Google OAuth dari `sessionStorage` ke `localStorage` (dengan batas masa berlaku 1 jam) agar pengguna tidak perlu login ulang setiap kali menutup dan membuka kembali browser atau aplikasi PWA.
 - Menjadikan header kolom tabel daftar lagu sticky (menempel di atas dengan efek blur) saat daftar lagu di-scroll ke bawah.

@@ -37,12 +37,16 @@ import {
   Radio,
   Loader,
   RefreshCw,
+  MoreVertical,
+  RotateCcw,
+  EyeOff,
 } from 'lucide';
 
 import {
   getAllTracks,
   saveTracks,
   saveAudioBlob,
+  removeAudioBlob,
   getAudioBlob,
   getAllAudioBlobIds,
   saveCover,
@@ -52,6 +56,10 @@ import {
   saveTrack,
   getSetting,
   setSetting,
+  getIgnoredTracks,
+  ignoreTrack,
+  unignoreTrack,
+  clearIgnoredTracks,
 } from '../storage/db.js';
 import {
   hasCredentials,
@@ -71,6 +79,7 @@ import {
   showProgressToast,
   removeProgressToast,
   formatBytes,
+  escapeHtml,
 } from './components.js';
 
 export function refreshLucideIcons() {
@@ -108,6 +117,9 @@ export function refreshLucideIcons() {
       Radio,
       Loader,
       RefreshCw,
+      MoreVertical,
+      RotateCcw,
+      EyeOff,
     },
   });
 }
@@ -125,6 +137,8 @@ export class UIController {
     this.isBatchDownloading = false;
     this.downloadingTrackIds = new Set();
     this.deferredInstallPrompt = null;
+    this.activeMenuTrackId = null;
+    this.confirmActionCallback = null;
 
     this.bindEngineEvents();
     this.bindDOMEvents();
@@ -436,6 +450,15 @@ export class UIController {
     const container = document.getElementById('content-container');
     if (container) {
       container.addEventListener('click', async (e) => {
+        // Track Menu Button Click
+        const menuBtn = e.target.closest('.btn-track-menu');
+        if (menuBtn) {
+          e.stopPropagation();
+          const trackId = menuBtn.getAttribute('data-id');
+          this.openTrackActionMenu(trackId, menuBtn);
+          return;
+        }
+
         // Track Row Click (Play track)
         const trackRow = e.target.closest('.track-row');
         const cacheBtn = e.target.closest('.btn-cache-track');
@@ -720,6 +743,88 @@ export class UIController {
         showToast('Library telah di-reset sepenuhnya.', 'warning');
       }
     });
+
+    // Floating Track Action Menu Click Handling
+    const actionMenu = document.getElementById('track-action-menu');
+    if (actionMenu) {
+      actionMenu.addEventListener('click', async (e) => {
+        const item = e.target.closest('.menu-action-item');
+        if (!item) return;
+
+        const action = item.getAttribute('data-action');
+        const trackId = item.getAttribute('data-id') || this.activeMenuTrackId;
+        this.closeTrackActionMenu();
+
+        if (action === 'remove-cache') {
+          await this.handleRemoveTrackCache(trackId);
+        } else if (action === 'delete-track') {
+          this.promptDeleteTrack(trackId);
+        }
+      });
+    }
+
+    // Close floating action menu on outside clicks and scroll
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#track-action-menu') && !e.target.closest('.btn-track-menu')) {
+        this.closeTrackActionMenu();
+      }
+    });
+    window.addEventListener('scroll', () => this.closeTrackActionMenu(), true);
+
+    // Confirmation Modal Actions
+    document.getElementById('btn-confirm-cancel')?.addEventListener('click', () => {
+      this.closeConfirmModal();
+    });
+
+    document.getElementById('btn-confirm-action')?.addEventListener('click', async () => {
+      const cb = this.confirmActionCallback;
+      this.closeConfirmModal();
+      if (typeof cb === 'function') {
+        await cb();
+      }
+    });
+
+    // Ignored Tracks Modal Actions
+    document.getElementById('btn-manage-ignored')?.addEventListener('click', () => {
+      this.openIgnoredTracksModal();
+    });
+
+    document.getElementById('btn-close-ignored-modal')?.addEventListener('click', () => {
+      this.closeIgnoredTracksModal();
+    });
+
+    document.getElementById('btn-done-ignored-modal')?.addEventListener('click', () => {
+      this.closeIgnoredTracksModal();
+    });
+
+    document.getElementById('btn-restore-all-ignored')?.addEventListener('click', async () => {
+      const ignored = await getIgnoredTracks();
+      if (ignored.length === 0) {
+        showToast('Tidak ada lagu di daftar abaikan.', 'info');
+        return;
+      }
+      await clearIgnoredTracks();
+      await this.renderIgnoredTracksModalList();
+      const countEl = document.getElementById('modal-ignored-count');
+      if (countEl) countEl.textContent = '0 lagu';
+      showToast('Semua lagu telah dipulihkan. Tekan "Sinkronkan Lagu" untuk memuatnya kembali.', 'success');
+    });
+
+    const ignoredListEl = document.getElementById('ignored-tracks-list');
+    if (ignoredListEl) {
+      ignoredListEl.addEventListener('click', async (e) => {
+        const unignoreBtn = e.target.closest('.btn-unignore-track');
+        if (unignoreBtn) {
+          const trackId = unignoreBtn.getAttribute('data-id');
+          await unignoreTrack(trackId);
+          await this.renderIgnoredTracksModalList();
+          const remaining = await getIgnoredTracks();
+          const countEl = document.getElementById('modal-ignored-count');
+          if (countEl) countEl.textContent = `${remaining.length} lagu`;
+          showToast('Lagu dipulihkan dari daftar abaikan. Tekan "Sinkronkan Lagu" untuk memasukkannya kembali.', 'info');
+        }
+      });
+    }
   }
 
   setActiveTab(tab) {
@@ -861,6 +966,17 @@ export class UIController {
       console.warn('Gagal membaca info connected_folder:', e);
     }
 
+    // Update Ignored Tracks count in modal
+    try {
+      const ignored = await getIgnoredTracks();
+      const countEl = document.getElementById('modal-ignored-count');
+      if (countEl) {
+        countEl.textContent = `${ignored.length} lagu`;
+      }
+    } catch (e) {
+      console.warn('Gagal membaca info ignored_tracks:', e);
+    }
+
     this.updateStorageInfo();
 
     modal.classList.remove('hidden');
@@ -876,6 +992,234 @@ export class UIController {
     }
   }
 
+  openTrackActionMenu(trackId, triggerBtn) {
+    const menu = document.getElementById('track-action-menu');
+    if (!menu) return;
+
+    const track = this.allTracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    this.activeMenuTrackId = trackId;
+
+    menu.innerHTML = `
+      ${
+        track.isCached
+          ? `<button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="remove-cache" data-id="${track.id}">
+               <i data-lucide="trash-2" class="w-3.5 h-3.5 text-zinc-400"></i>
+               <span>Hapus dari Cache Offline</span>
+             </button>`
+          : ''
+      }
+      <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition cursor-pointer" data-action="delete-track" data-id="${track.id}">
+        <i data-lucide="eye-off" class="w-3.5 h-3.5 text-rose-400"></i>
+        <span>Hapus dari Library</span>
+      </button>
+      <a href="https://drive.google.com/file/d/${track.id}/view" target="_blank" rel="noopener noreferrer" class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer">
+        <i data-lucide="external-link" class="w-3.5 h-3.5 text-zinc-400"></i>
+        <span>Buka di Google Drive</span>
+      </a>
+    `;
+
+    refreshLucideIcons();
+
+    // Position menu relative to button
+    const rect = triggerBtn.getBoundingClientRect();
+    const menuWidth = 208; // w-52
+    let left = rect.right - menuWidth;
+    if (left < 10) left = 10;
+    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
+
+    let top = rect.bottom + 4;
+    const estimatedHeight = track.isCached ? 115 : 80;
+    if (top + estimatedHeight > window.innerHeight - 10) {
+      top = rect.top - estimatedHeight - 4;
+    }
+
+    menu.style.top = `${Math.max(10, top)}px`;
+    menu.style.left = `${left}px`;
+    menu.classList.remove('hidden');
+  }
+
+  closeTrackActionMenu() {
+    const menu = document.getElementById('track-action-menu');
+    if (menu) {
+      menu.classList.add('hidden');
+    }
+    this.activeMenuTrackId = null;
+  }
+
+  async handleRemoveTrackCache(trackId) {
+    const track = this.allTracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    try {
+      await removeAudioBlob(trackId);
+      track.isCached = false;
+      track.cachedAt = null;
+      await saveTrack(track);
+
+      await this.reloadTracks();
+      await this.updateStorageInfo();
+      this.updateOfflineBadge();
+      this.renderMainContent();
+      showToast(`Audio "${track.title || track.name}" dihapus dari cache offline.`, 'info');
+    } catch (err) {
+      console.error('Remove audio cache error:', err);
+      showToast(`Gagal menghapus cache audio: ${err.message}`, 'error');
+    }
+  }
+
+  promptDeleteTrack(trackId) {
+    const track = this.allTracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-modal-title');
+    const descEl = document.getElementById('confirm-modal-desc');
+    const btnAction = document.getElementById('btn-confirm-action');
+
+    if (!modal) return;
+
+    if (titleEl) titleEl.textContent = 'Hapus Lagu dari Library';
+    if (descEl) {
+      descEl.textContent = `Apakah Anda yakin ingin menghapus "${track.title || track.name}" dari library DITUNE? Lagu tidak akan dihapus dari Google Drive Anda, namun akan disembunyikan dari sinkronisasi.`;
+    }
+    if (btnAction) {
+      btnAction.textContent = 'Hapus';
+      btnAction.className = 'px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold border border-rose-500/30 transition cursor-pointer';
+    }
+
+    this.confirmActionCallback = async () => {
+      await this.executeDeleteTrack(track);
+    };
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  closeConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    this.confirmActionCallback = null;
+  }
+
+  async executeDeleteTrack(track) {
+    try {
+      const isCurrent = this.engine.currentTrack?.id === track.id;
+
+      if (isCurrent) {
+        if (this.engine.playlist.length > 1) {
+          this.engine.playNext();
+        } else {
+          this.engine.pause();
+          this.engine.playlist = [];
+          this.engine.currentTrack = null;
+          this.resetPlayerBar();
+        }
+      }
+
+      this.engine.playlist = this.engine.playlist.filter((t) => t.id !== track.id);
+      if (this.engine.currentTrack) {
+        this.engine.currentIndex = this.engine.playlist.findIndex((t) => t.id === this.engine.currentTrack.id);
+      }
+
+      await ignoreTrack(track);
+      await this.reloadTracks();
+      await this.updateStorageInfo();
+      this.updateOfflineBadge();
+      this.renderMainContent();
+
+      showToast(`"${track.title || track.name}" telah dihapus dari library.`, 'info');
+    } catch (err) {
+      console.error('Delete track error:', err);
+      showToast(`Gagal menghapus lagu: ${err.message}`, 'error');
+    }
+  }
+
+  resetPlayerBar() {
+    const titleEl = document.getElementById('player-title');
+    const artistEl = document.getElementById('player-artist');
+    const coverImg = document.getElementById('player-cover-img');
+    const coverFallback = document.getElementById('player-cover-fallback');
+    const btnQuickCache = document.getElementById('btn-quick-cache');
+    const timeCurEl = document.getElementById('time-current');
+    const timeTotEl = document.getElementById('time-total');
+    const barFill = document.getElementById('progress-bar-fill');
+    const thumb = document.getElementById('progress-thumb');
+
+    if (titleEl) titleEl.textContent = 'Tidak ada lagu';
+    if (artistEl) artistEl.textContent = 'Pilih lagu untuk memutar';
+    if (coverImg) {
+      coverImg.src = '';
+      coverImg.classList.add('hidden');
+    }
+    if (coverFallback) coverFallback.classList.remove('hidden');
+    if (btnQuickCache) btnQuickCache.classList.add('hidden');
+    if (timeCurEl) timeCurEl.textContent = '0:00';
+    if (timeTotEl) timeTotEl.textContent = '0:00';
+    if (barFill) barFill.style.width = '0%';
+    if (thumb) thumb.style.left = '0%';
+  }
+
+  async openIgnoredTracksModal() {
+    const modal = document.getElementById('ignored-tracks-modal');
+    if (!modal) return;
+    await this.renderIgnoredTracksModalList();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    refreshLucideIcons();
+  }
+
+  async closeIgnoredTracksModal() {
+    const modal = document.getElementById('ignored-tracks-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+    const ignored = await getIgnoredTracks();
+    const countEl = document.getElementById('modal-ignored-count');
+    if (countEl) countEl.textContent = `${ignored.length} lagu`;
+  }
+
+  async renderIgnoredTracksModalList() {
+    const listEl = document.getElementById('ignored-tracks-list');
+    if (!listEl) return;
+
+    const ignoredList = await getIgnoredTracks();
+    if (ignoredList.length === 0) {
+      listEl.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-center text-zinc-500">
+          <i data-lucide="eye-off" class="w-8 h-8 mb-2 opacity-40"></i>
+          <p class="text-xs">Belum ada lagu yang disembunyikan.</p>
+        </div>
+      `;
+      refreshLucideIcons();
+      return;
+    }
+
+    listEl.innerHTML = ignoredList
+      .map(
+        (t) => `
+      <div class="flex items-center justify-between gap-3 py-2.5 px-2 hover:bg-zinc-800/40 rounded-lg transition">
+        <div class="min-w-0 flex-1">
+          <p class="text-xs font-semibold text-white truncate">${escapeHtml(t.title || t.name)}</p>
+          <p class="text-[11px] text-zinc-400 truncate">${escapeHtml(t.artist || 'Unknown Artist')}</p>
+        </div>
+        <button class="btn-unignore-track flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-medium transition cursor-pointer" data-id="${t.id}" title="Pulihkan lagu ke sinkronisasi">
+          <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+          <span>Pulihkan</span>
+        </button>
+      </div>
+    `
+      )
+      .join('');
+
+    refreshLucideIcons();
+  }
+
   /**
    * Helper SSOT: Merge remote audio files with local IndexedDB records
    * Preserves cached blobs, durations, ID3 metadata, and cover art.
@@ -889,6 +1233,11 @@ export class UIController {
       });
     }
 
+    // Filter out files in ignored_tracks
+    const ignoredList = await getIgnoredTracks();
+    const ignoredSet = new Set(ignoredList.map((t) => t.id));
+    const validRemoteFiles = remoteFiles.filter((file) => !ignoredSet.has(file.id));
+
     const existingTracks = await getAllTracks();
     const existingMap = new Map(existingTracks.map((t) => [t.id, t]));
     const blobIds = await getAllAudioBlobIds();
@@ -897,7 +1246,7 @@ export class UIController {
     let newCount = 0;
     const tracksToSave = [];
 
-    for (const file of remoteFiles) {
+    for (const file of validRemoteFiles) {
       const existing = existingMap.get(file.id);
 
       if (existing) {

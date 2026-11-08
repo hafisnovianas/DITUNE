@@ -21,6 +21,10 @@ import {
   getStorageStats,
   clearAllCache,
   clearAllData,
+  getIgnoredTracks,
+  ignoreTrack,
+  unignoreTrack,
+  clearIgnoredTracks,
 } from '../src/modules/storage/db.js';
 
 describe('IndexedDB Storage Engine', () => {
@@ -236,5 +240,49 @@ describe('IndexedDB Storage Engine', () => {
     assert.equal(ghostTrack.isCached, false, 'saveTrack must enforce isCached = false when blob is missing');
     const savedGhost = await getTrack('no-blob');
     assert.equal(savedGhost.isCached, false, 'Stored track must have isCached = false when blob is missing');
+  });
+
+  test('ignored tracks management should add, remove, and purge ignored tracks while deleting stored track data', async () => {
+    // 1. Initial state must be empty array
+    const initialList = await getIgnoredTracks();
+    assert.deepEqual(initialList, []);
+
+    // 2. Save a track with audio blob and cover
+    const sampleTrack = { id: 'track-to-ignore', title: 'Lagu Rahasia', artist: 'Artis Misteri', album: 'Album X' };
+    await saveTrack(sampleTrack);
+    await saveAudioBlob('track-to-ignore', new Blob(['test-audio']), 'audio/mpeg');
+    await saveCover('track-to-ignore', new Blob(['test-cover']), 'image/jpeg');
+
+    // Verify it exists in stores
+    assert.ok(await getTrack('track-to-ignore'));
+    assert.ok(await getAudioBlob('track-to-ignore'));
+    assert.ok(await getCover('track-to-ignore'));
+
+    // 3. Ignore track
+    await ignoreTrack(sampleTrack);
+
+    // 4. Track should be recorded in ignored_tracks
+    const ignoredList = await getIgnoredTracks();
+    assert.equal(ignoredList.length, 1);
+    assert.equal(ignoredList[0].id, 'track-to-ignore');
+    assert.equal(ignoredList[0].title, 'Lagu Rahasia');
+    assert.ok(ignoredList[0].ignoredAt > 0);
+
+    // 5. Track data must be purged from tracks, audio_blobs, and covers
+    assert.equal(await getTrack('track-to-ignore'), null);
+    assert.equal(await getAudioBlob('track-to-ignore'), null);
+    assert.equal(await getCover('track-to-ignore'), null);
+
+    // 6. Unignore track
+    await unignoreTrack('track-to-ignore');
+    const afterUnignore = await getIgnoredTracks();
+    assert.deepEqual(afterUnignore, []);
+
+    // 7. Clear all ignored tracks
+    await ignoreTrack({ id: 'dummy-1', title: 'Dummy 1' });
+    await ignoreTrack({ id: 'dummy-2', title: 'Dummy 2' });
+    assert.equal((await getIgnoredTracks()).length, 2);
+    await clearIgnoredTracks();
+    assert.deepEqual(await getIgnoredTracks(), []);
   });
 });
