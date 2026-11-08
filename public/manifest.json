@@ -1,5 +1,5 @@
 {
-  "name": "DITUNE - Spotify-like Google Drive Player",
+  "name": "DITUNE - Google Drive Music Player",
   "short_name": "DITUNE",
   "description": "Pemutar musik modern berbasis Google Drive dengan cache offline IndexedDB dan kontrol lockscreen",
   "start_url": "/",

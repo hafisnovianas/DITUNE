@@ -1,6 +1,6 @@
 /**
  * DITUNE UI Components
- * Renders Spotify-like interface, track lists, album cards, player controls, and modals.
+ * Renders UI components, track lists, album cards, player controls, and modals.
  */
 
 import { formatDuration } from '../parser/metadata.js';
@@ -370,8 +370,32 @@ export function renderAppShell() {
 /**
  * Render Track List
  */
-export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = false) {
+export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = false, connectedFolder = null) {
   if (tracks.length === 0) {
+    if (connectedFolder && connectedFolder.id) {
+      return `
+        <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400">
+          <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-zinc-600">
+            <i data-lucide="music" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-lg font-bold text-zinc-200">Perpustakaan Kosong</h3>
+          <p class="text-sm max-w-md text-zinc-400 mt-1">
+            Folder "${escapeHtml(connectedFolder.name)}" terhubung. Tekan tombol di bawah untuk menyinkronkan lagu.
+          </p>
+          <div class="flex items-center gap-3 mt-6">
+            <button id="btn-sync-folder" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition cursor-pointer">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              <span>Sinkronkan Lagu</span>
+            </button>
+            <button id="btn-empty-picker" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition cursor-pointer">
+              <i data-lucide="folder" class="w-4 h-4"></i>
+              <span>Ganti Folder</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400">
         <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-zinc-600">
@@ -382,7 +406,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
           Hubungkan folder musik dari Google Drive Anda untuk mulai mendengarkan.
         </p>
         <div class="flex items-center gap-3 mt-6">
-          <button id="btn-empty-picker" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition">
+          <button id="btn-empty-picker" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition cursor-pointer">
             <i data-lucide="folder-plus" class="w-4 h-4"></i>
             <span>Pilih Folder Drive</span>
           </button>

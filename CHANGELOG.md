@@ -34,6 +34,8 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Memperbarui tombol "Kosongkan Perpustakaan" agar mempertahankan tautan folder Google Drive (`connected_folder`) dan sesi login, sehingga pengguna dapat langsung menarik kembali lagu-lagu segar via tombol "Sinkronkan Lagu" tanpa harus memilih ulang folder dari awal.
+- Menyesuaikan tampilan antarmuka saat library kosong untuk menampilkan status folder terhubung beserta tombol aksi cepat "Sinkronkan Lagu" dan tombol sekunder "Ganti Folder".
 - Menyempurnakan antarmuka modal *Lagu yang Disembunyikan* dengan menghapus tombol silang `✕` agar murni berstatus panel aksi langsung (*Immediate Management Panel*), serta menjalankan sinkronisasi folder Google Drive otomatis di latar belakang saat tombol **"Selesai"** diklik jika terdapat lagu yang dipulihkan.
 - Memperlebar kolom ke-4 pada tabel daftar lagu menjadi `9.5rem` (`grid-cols-[2rem_1fr_9.5rem]` / `md:grid-cols-[2rem_1fr_26%_9.5rem]`) agar memuat badge offline, durasi, dan tombol menu lagu dengan rapi dan presisi.
 - Merombak antarmuka modal Pengaturan dari gaya kartu bertumpuk menjadi tata letak baris bersih (*native row-based preferences*) untuk menghilangkan redundansi visual dan meningkatkan keterbacaan.

@@ -140,6 +140,7 @@ export class UIController {
     this.activeMenuTrackId = null;
     this.confirmActionCallback = null;
     this.hasRestoredIgnoredTracks = false;
+    this.connectedFolder = null;
 
     this.bindEngineEvents();
     this.bindDOMEvents();
@@ -161,6 +162,11 @@ export class UIController {
 
   async reloadTracks() {
     this.allTracks = await getAllTracks();
+    try {
+      this.connectedFolder = await getSetting('connected_folder');
+    } catch (e) {
+      console.warn('Gagal membaca connected_folder saat reload:', e);
+    }
     try {
       const blobIds = await getAllAudioBlobIds();
       const tracksToHeal = [];
@@ -278,7 +284,7 @@ export class UIController {
     } else {
       const filtered = this.getFilteredTracks();
       const currentId = this.engine.currentTrack?.id;
-      container.innerHTML = renderTrackList(filtered, currentId, this.engine.isPlaying);
+      container.innerHTML = renderTrackList(filtered, currentId, this.engine.isPlaying, this.connectedFolder);
 
       // Breadcrumb header if filtered by artist or album
       if (this.filterArtist || this.filterAlbum) {
@@ -731,17 +737,17 @@ export class UIController {
 
     // Reset All Library Button
     document.getElementById('btn-reset-library')?.addEventListener('click', async () => {
-      if (confirm('PERINGATAN: Semua lagu dan cache di DITUNE akan dihapus total. Lanjutkan?')) {
-        clearSessionToken();
+      if (confirm('Yakin ingin mengosongkan seluruh lagu dan audio cache di DITUNE? (Folder terhubung tetap disimpan)')) {
         await clearAllData();
-        await setSetting('connected_folder', null);
         this.engine.pause();
         this.engine.playlist = [];
         this.engine.currentTrack = null;
+        this.resetPlayerBar();
         await this.reloadTracks();
         await this.updateStorageInfo();
+        this.updateOfflineBadge();
         this.renderMainContent();
-        showToast('Library telah di-reset sepenuhnya.', 'warning');
+        showToast('Perpustakaan lagu telah dikosongkan. Folder tetap terhubung.', 'info');
       }
     });
 

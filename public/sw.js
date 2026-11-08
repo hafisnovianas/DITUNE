@@ -4,7 +4,7 @@
  * Audio Blobs are cached separately in IndexedDB.
  */
 
-const CACHE_NAME = 'ditune-shell-v3';
+const CACHE_NAME = 'ditune-shell-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
