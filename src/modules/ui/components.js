@@ -21,11 +21,14 @@ export function formatBytes(bytes) {
  */
 export function renderAppShell() {
   return `
-    <div class="flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans select-none">
+    <div class="flex flex-col h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans select-none">
       
-      <!-- Desktop Sidebar -->
-      <aside class="hidden md:flex flex-col w-64 bg-zinc-900/80 backdrop-blur border-r border-zinc-800/80 p-4 gap-4 flex-shrink-0">
-        <!-- Logo -->
+      <!-- Top Workspace (Sidebar + Main Content) -->
+      <div class="flex-1 flex min-h-0 overflow-hidden">
+        
+        <!-- Desktop Sidebar -->
+        <aside class="hidden md:flex flex-col w-64 bg-zinc-900/80 backdrop-blur border-r border-zinc-800/80 p-4 gap-4 flex-shrink-0">
+          <!-- Logo -->
         <div class="flex items-center gap-3 px-2 py-3">
           <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
             <i data-lucide="disc" class="w-6 h-6 animate-spin-slow"></i>
@@ -141,9 +144,9 @@ export function renderAppShell() {
               <span class="hidden sm:inline">Online</span>
             </div>
 
-            <!-- Settings Button (Mobile) -->
-            <button id="btn-open-settings-mobile" class="md:hidden p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800">
-              <i data-lucide="settings" class="w-5 h-5"></i>
+            <!-- Settings Button (Header Desktop & Mobile) -->
+            <button id="btn-open-settings-header" class="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition" title="Pengaturan & Kredensial">
+              <i data-lucide="settings" class="w-4 h-4"></i>
             </button>
           </div>
         </header>
@@ -157,14 +160,14 @@ export function renderAppShell() {
         </div>
 
         <!-- Main Content Area (Scrollable) -->
-        <div id="content-container" class="flex-1 overflow-y-auto p-4 md:p-6 pb-36 md:pb-32">
+        <div id="content-container" class="flex-1 overflow-y-auto p-4 md:p-6 pb-6">
           <!-- Dynamically rendered track list / album view -->
         </div>
       </main>
     </div>
 
-    <!-- Persistent Bottom Player Bar -->
-    <div id="player-bar" class="fixed bottom-0 left-0 right-0 h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 md:px-6 flex items-center justify-between z-40 transition-all">
+    <!-- Persistent Bottom Player Bar (In-Flow Flex Row) -->
+    <div id="player-bar" class="h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 md:px-6 flex items-center justify-between flex-shrink-0 z-40 transition-all">
       
       <!-- Track Info (Left) -->
       <div class="flex items-center gap-3 w-1/4 min-w-[160px] md:min-w-[240px]">
@@ -247,6 +250,7 @@ export function renderAppShell() {
         </div>
       </div>
     </div>
+  </div>
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">

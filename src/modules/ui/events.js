@@ -715,6 +715,7 @@ export class UIController {
     // Settings Modal Open/Close
     const openSettings = () => this.openSettingsModal();
     document.getElementById('btn-open-settings')?.addEventListener('click', openSettings);
+    document.getElementById('btn-open-settings-header')?.addEventListener('click', openSettings);
     document.getElementById('btn-open-settings-mobile')?.addEventListener('click', openSettings);
     document.getElementById('btn-close-settings')?.addEventListener('click', () => this.closeSettingsModal());
 

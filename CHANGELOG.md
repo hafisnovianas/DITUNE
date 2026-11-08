@@ -8,6 +8,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Pintasan tombol Pengaturan di bilah navigasi header atas di samping indikator status jaringan.
 - Fitur sinkronisasi folder 1-klik (`↻ Sinkronkan Lagu`) di header daftar lagu untuk memindai lagu baru di Google Drive tanpa memunculkan dialog Picker.
 - Kartu informasi status dan nama folder terhubung di dalam modal Pengaturan.
 - Penyimpanan persisten metadata folder aktif (`connected_folder`) di IndexedDB.
@@ -32,6 +33,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Memperbaiki tata letak shell aplikasi menjadi Flex Column semantik sehingga Player Bar tidak lagi menimpa tombol Pengaturan dan status penyimpanan di sidebar.
 - Menambahkan rekonsiliasi mandiri (Self-Healing SSOT) antara tabel audio_blobs dan metadata tracks agar status Offline dan durasi lagu tetap sinkron secara otomatis.
 - Mengubah strategi Service Worker PWA untuk navigasi HTML menjadi Network-First (cache ditune-shell-v2) agar pembaruan rilis web langsung aktif tanpa tertahan cache lama.
 - Mencegah reset status cache dan penghapusan metadata lagu lama saat memilih folder Google Drive berulang melalui mekanisme Smart Merge berbasis ID file.
