@@ -435,7 +435,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         data-id="${track.id}"
       >
         <!-- Index / Play indicator -->
-        <div class="text-center flex-shrink-0">
+        <div class="track-play-btn text-center flex-shrink-0 cursor-pointer" data-id="${track.id}">
           ${
             isActive && isPlaying
               ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover:hidden" title="Sedang memutar">

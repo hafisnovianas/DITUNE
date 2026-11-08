@@ -466,7 +466,24 @@ export class UIController {
           return;
         }
 
-        // Track Row Click (Play track)
+        // Track Play/Pause Indicator Button (Column #)
+        const playBtn = e.target.closest('.track-play-btn');
+        if (playBtn) {
+          e.stopPropagation();
+          const trackId = playBtn.getAttribute('data-id');
+          if (this.engine.currentTrack?.id === trackId) {
+            this.engine.togglePlay();
+          } else {
+            const track = this.allTracks.find((t) => t.id === trackId);
+            if (track) {
+              const currentFiltered = this.getFilteredTracks();
+              this.engine.playTrack(track, currentFiltered);
+            }
+          }
+          return;
+        }
+
+        // Track Row Click (Play or restart track)
         const trackRow = e.target.closest('.track-row');
         const cacheBtn = e.target.closest('.btn-cache-track');
 
@@ -480,7 +497,11 @@ export class UIController {
         if (trackRow) {
           const trackId = trackRow.getAttribute('data-id');
           if (this.engine.currentTrack?.id === trackId) {
-            this.engine.togglePlay();
+            // Putar ulang dari awal jika mengeklik baris lagu yang sedang aktif
+            this.engine.seek(0);
+            if (!this.engine.isPlaying) {
+              this.engine.resume();
+            }
             return;
           }
 
