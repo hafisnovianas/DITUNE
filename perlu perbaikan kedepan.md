@@ -1,4 +1,3 @@
-- [x] ~~lagu contoh hapus aja fiturnya~~ (Selesai)
-- [x] ~~ketika sedang download lagu tidak terlihat progressnya, dikira macet~~ (Selesai)
-- [x] ~~ketika pilih folder lagi bahkan folder yang sama, semua lagu yang sebelumnya hilang dan unduh baru, solusinya?~~ (Selesai - Smart Merge & Cache Preservation)
-- [x] ~~pilih folder drive itu harusnya hilang ngga sih kalau udah pilih? soalnya orang kira bisa milih banyak folder jadinya.~~ (Selesai - Sembunyikan dari sidebar saat ada lagu, pindahkan ke Pengaturan)
+pembuatan playlist dan pengkategorian lagu ke playlist.
+pendeteksian folder sebagai playlist, tapi tetap bisa dipindah ke playlist lain. yang ada di root tidak diberikan playlist.
+tombol export setting, kalau bisa tulis langsung ke folder drive nya, jadi nanti otomatis didtekesi oleh ditune.

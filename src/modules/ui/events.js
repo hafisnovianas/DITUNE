@@ -479,6 +479,11 @@ export class UIController {
 
         if (trackRow) {
           const trackId = trackRow.getAttribute('data-id');
+          if (this.engine.currentTrack?.id === trackId) {
+            this.engine.togglePlay();
+            return;
+          }
+
           const track = this.allTracks.find((t) => t.id === trackId);
           if (track) {
             const currentFiltered = this.getFilteredTracks();
