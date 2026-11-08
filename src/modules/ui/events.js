@@ -171,6 +171,12 @@ export class UIController {
           needSave = true;
         }
 
+        // Heal titles with underscores into clean titles with spaces
+        if (track.title && track.title.includes('_')) {
+          track.title = track.title.replace(/_/g, ' ').trim();
+          needSave = true;
+        }
+
         if (needSave) {
           tracksToHeal.push(track);
         }
@@ -934,7 +940,7 @@ export class UIController {
         tracksToSave.push({
           id: file.id,
           name: file.name,
-          title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
+          title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').replace(/_/g, ' ').trim(),
           artist: 'Unknown Artist',
           album: 'Unknown Album',
           duration: 0,

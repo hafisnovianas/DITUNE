@@ -146,9 +146,11 @@ export function renderAppShell() {
       
       <!-- Track Info (Left) -->
       <div class="flex items-center gap-3 w-1/4 min-w-[160px] md:min-w-[240px]">
-        <div id="player-cover-container" class="w-14 h-14 rounded-lg bg-zinc-800 border border-zinc-700/60 overflow-hidden flex-shrink-0 flex items-center justify-center text-zinc-600 shadow-md relative">
+        <div id="player-cover-container" class="w-14 h-14 rounded-xl bg-gradient-to-br from-zinc-800 via-zinc-850 to-emerald-950/40 border border-zinc-700/50 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg shadow-black/40 relative group">
           <img id="player-cover-img" src="" alt="" class="hidden w-full h-full object-cover" />
-          <i id="player-cover-fallback" data-lucide="music" class="w-6 h-6"></i>
+          <div id="player-cover-fallback" class="flex items-center justify-center text-emerald-400/70 group-hover:text-emerald-400 transition">
+            <i data-lucide="music" class="w-6 h-6"></i>
+          </div>
         </div>
         <div class="min-w-0">
           <h4 id="player-title" class="text-sm font-semibold text-white truncate hover:underline cursor-pointer">Belum ada lagu</h4>
@@ -421,8 +423,8 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         </div>
       </div>
 
-      <!-- Table Header -->
-      <div class="flex items-center gap-3 px-3 py-2 text-xs font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/80">
+      <!-- Table Header (Sticky saat di-scroll) -->
+      <div class="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur-md py-2.5 -mx-2 px-3 flex items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 shadow-sm">
         <span class="w-8 text-center">#</span>
         <span class="flex-1">Judul</span>
         <span class="hidden md:block w-1/4">Album</span>

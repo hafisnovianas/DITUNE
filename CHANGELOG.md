@@ -27,6 +27,9 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Menjadikan header kolom tabel daftar lagu sticky (menempel di atas dengan efek blur) saat daftar lagu di-scroll ke bawah.
+- Membersihkan otomatis karakter pemisah garis bawah (_) pada judul lagu mentah menjadi spasi yang rapi.
+- Mempercantik kotak thumbnail cover art di player bar dengan latar belakang gradien modern dan aksen emerald.
 - Penyatuan logika smart merge pustaka Google Drive ke fungsi tunggal SSOT `mergeAndSaveDriveFiles`.
 - Menyembunyikan tombol "Pilih Folder Drive" dari sidebar dan mobile header saat library sudah terisi lagu untuk mencegah persepsi multi-folder, serta menyediakan tombol "Ganti Folder Musik Google Drive" di dalam modal Pengaturan.
 - Mengubah OAuth scope dari `drive.file` menjadi `drive.readonly` agar fitur pemilihan 1 folder musik dapat memindai dan memuat semua file audio di dalamnya secara otomatis.
