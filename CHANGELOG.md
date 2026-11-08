@@ -37,6 +37,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Memperbaiki ketidakkonsistenan posisi kolom Album dan merapikan kolom Durasi agar tidak mepet dengan scrollbar menggunakan struktur CSS Grid 4-kolom yang presisi (`grid-cols-[2rem_1fr_26%_7.5rem]`).
 - Memperbaiki alur otentikasi Google Drive saat memutar atau mengunduh lagu pada sesi baru dengan langsung memicu popup interaktif resmi, mencegah penutupan modal mendadak akibat *silent auth*, serta memulihkan tampilan antarmuka baris lagu agar tidak tertahan di status loading 0% saat unduhan batal atau gagal.
 - Memperbaiki penanganan kloning Response body pada Service Worker PWA (`sw.js`) untuk mencegah error `Response body is already used` saat caching navigasi HTML dan menaikkan versi cache menjadi `ditune-shell-v3`.
 - Memperbaiki tata letak area konten utama dengan memisahkan header halaman dan kolom tabel menjadi elemen tetap (*non-scrollable fixed header*), sehingga judul tidak tergulung keluar layar dan baris-baris lagu bergulir secara independen di bawahnya.

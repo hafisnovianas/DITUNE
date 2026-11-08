@@ -358,11 +358,11 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
 
     return `
       <div 
-        class="track-row group flex items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
+        class="track-row group grid grid-cols-[2rem_1fr_7.5rem] md:grid-cols-[2rem_1fr_26%_7.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
         data-id="${track.id}"
       >
         <!-- Index / Play indicator -->
-        <div class="w-8 text-center flex-shrink-0">
+        <div class="text-center flex-shrink-0">
           ${
             isActive && isPlaying
               ? `<div class="flex items-end justify-center gap-0.5 h-4">
@@ -376,20 +376,20 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         </div>
 
         <!-- Title & Artist -->
-        <div class="flex-1 min-w-0 pr-2">
+        <div class="min-w-0 pr-2">
           <p class="text-sm font-semibold truncate ${activeText}">${escapeHtml(track.title || track.name)}</p>
           <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.artist || 'Unknown Artist')}</p>
         </div>
 
         <!-- Album -->
-        <div class="hidden md:block w-1/4 min-w-0 pr-2">
+        <div class="hidden md:block min-w-0 pr-2">
           <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.album || 'Unknown Album')}</p>
         </div>
 
         <!-- Cache Status & Duration -->
-        <div class="track-cache-status flex items-center gap-3 flex-shrink-0">
+        <div class="track-cache-status flex items-center justify-end gap-3 min-w-0 pr-1">
           ${cacheIcon}
-          <span class="text-xs text-zinc-400 font-mono w-10 text-right">${formatDuration(track.duration)}</span>
+          <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${formatDuration(track.duration)}</span>
         </div>
       </div>
     `;
@@ -412,15 +412,15 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
       </div>
 
       <!-- Fixed Table Header -->
-      <div class="flex-shrink-0 py-2.5 px-3 flex items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
-        <span class="w-8 text-center">#</span>
-        <span class="flex-1">Judul</span>
-        <span class="hidden md:block w-1/4">Album</span>
-        <span class="w-24 text-right">Durasi</span>
+      <div class="flex-shrink-0 py-2.5 px-3 pr-5 grid grid-cols-[2rem_1fr_7.5rem] md:grid-cols-[2rem_1fr_26%_7.5rem] items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
+        <span class="text-center">#</span>
+        <span class="truncate">Judul</span>
+        <span class="hidden md:block truncate">Album</span>
+        <span class="text-right pr-1">Durasi</span>
       </div>
 
       <!-- Scrollable Track Rows -->
-      <div id="track-list-scroll" class="flex-1 overflow-y-auto space-y-1 pt-2 pb-6 min-h-0">
+      <div id="track-list-scroll" class="flex-1 overflow-y-auto space-y-1 pt-2 pb-6 pr-2 min-h-0">
         ${rows}
       </div>
     </div>

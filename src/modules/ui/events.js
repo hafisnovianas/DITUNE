@@ -1051,7 +1051,7 @@ export class UIController {
           </svg>
           <span>${percent}%</span>
         </span>
-        <span class="text-xs text-zinc-400 font-mono w-10 text-right">${durationText}</span>
+        <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${durationText}</span>
       `;
     }
   }
