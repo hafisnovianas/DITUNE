@@ -80,18 +80,22 @@ export async function initGoogleAuth() {
 }
 
 /**
- * Clear stored session token
+ * Clear stored access token
  */
 export function clearSessionToken() {
   currentAccessToken = null;
   tokenExpiresAt = 0;
   try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.removeItem(SESSION_EXPIRES_KEY);
+    }
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
       sessionStorage.removeItem(SESSION_EXPIRES_KEY);
     }
   } catch (e) {
-    console.debug('Failed to clear sessionStorage token:', e);
+    console.debug('Failed to clear stored token:', e);
   }
 }
 
@@ -104,11 +108,12 @@ export async function getAccessToken(interactive = true) {
     return currentAccessToken;
   }
 
-  // Restore from sessionStorage if still valid
+  // Restore from localStorage (or fallback sessionStorage) if still valid
   try {
-    if (typeof sessionStorage !== 'undefined') {
-      const savedToken = sessionStorage.getItem(SESSION_TOKEN_KEY);
-      const savedExpires = Number(sessionStorage.getItem(SESSION_EXPIRES_KEY)) || 0;
+    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+    if (storage) {
+      const savedToken = storage.getItem(SESSION_TOKEN_KEY);
+      const savedExpires = Number(storage.getItem(SESSION_EXPIRES_KEY)) || 0;
       if (savedToken && Date.now() < savedExpires - 60000) {
         currentAccessToken = savedToken;
         tokenExpiresAt = savedExpires;
@@ -116,7 +121,7 @@ export async function getAccessToken(interactive = true) {
       }
     }
   } catch (e) {
-    console.debug('Failed to read sessionStorage token:', e);
+    console.debug('Failed to read stored token:', e);
   }
 
   const { clientId } = getCredentials();
@@ -149,12 +154,16 @@ export async function getAccessToken(interactive = true) {
         tokenExpiresAt = Date.now() + expiresInSec * 1000;
 
         try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
+            localStorage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
+          }
           if (typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
             sessionStorage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
           }
         } catch (e) {
-          console.debug('Failed to save sessionStorage token:', e);
+          console.debug('Failed to save stored token:', e);
         }
 
         resolve(currentAccessToken);
