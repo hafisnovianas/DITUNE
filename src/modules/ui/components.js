@@ -29,18 +29,10 @@ export function renderAppShell() {
         <!-- Desktop Sidebar -->
         <aside class="hidden md:flex flex-col w-64 bg-zinc-900/80 backdrop-blur border-r border-zinc-800/80 p-4 gap-4 flex-shrink-0">
           <!-- Logo -->
-        <div class="flex items-center gap-3 px-2 py-3">
-          <div class="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-            <i data-lucide="disc" class="w-6 h-6 animate-spin-slow"></i>
+          <div class="px-2 py-2">
+            <h1 class="text-2xl font-black tracking-tight text-white">DITUNE</h1>
+            <p class="text-xs text-zinc-400 font-medium mt-0.5">Google Drive Player</p>
           </div>
-          <div>
-            <h1 class="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-              DITUNE
-              <span class="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">PWA</span>
-            </h1>
-            <p class="text-xs text-zinc-400 font-medium">Google Drive Player</p>
-          </div>
-        </div>
 
         <!-- Drive Action Buttons -->
         <div id="sidebar-picker-container" class="pt-2">
@@ -110,11 +102,8 @@ export function renderAppShell() {
         <header class="h-16 border-b border-zinc-800/80 bg-zinc-900/40 backdrop-blur px-4 md:px-6 flex items-center justify-between gap-4 flex-shrink-0">
           
           <!-- Mobile Title / Branding -->
-          <div class="flex items-center gap-2 md:hidden">
-            <div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <i data-lucide="disc" class="w-4 h-4"></i>
-            </div>
-            <span class="font-bold text-white text-base">DITUNE</span>
+          <div class="flex items-center md:hidden">
+            <span class="font-black text-white text-base tracking-tight">DITUNE</span>
           </div>
 
           <!-- Search Bar -->
