@@ -8,6 +8,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Dukungan pemindaian dan pemutaran trek audio dari file media berformat `.mp4`, `.m4v`, dan `.webm` dari Google Drive.
 - Dukungan tombol instalasi aplikasi Progressive Web App (PWA) di bilah navigasi header saat aplikasi belum terpasang.
 - Fitur sinkronisasi folder 1-klik (`↻ Sinkronkan Lagu`) di header daftar lagu untuk memindai lagu baru di Google Drive tanpa memunculkan dialog Picker.
 - Kartu informasi status dan nama folder terhubung di dalam modal Pengaturan.

@@ -187,11 +187,11 @@ export async function openGooglePicker() {
 
   return new Promise((resolve, reject) => {
     try {
-      // Audio files view
+      // Audio & media files view (supports audio and mp4/webm audio tracks)
       const audioView = new window.google.picker.DocsView()
-        .setMimeTypes('audio/mpeg,audio/mp3,audio/flac,audio/x-m4a,audio/m4a,audio/wav,audio/ogg,audio/aac')
+        .setMimeTypes('audio/mpeg,audio/mp3,audio/flac,audio/x-m4a,audio/m4a,audio/wav,audio/ogg,audio/aac,video/mp4,video/webm')
         .setMode(window.google.picker.DocsViewMode.LIST)
-        .setLabel('File Musik');
+        .setLabel('File Musik / Media');
 
       // Folder view
       const folderView = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
@@ -253,7 +253,12 @@ async function processPickedDocuments(docs, token) {
       selectedFolder = { id: folderId, name: folderName };
       const folderFiles = await listAudioFilesFromFolder(folderId, token);
       resultFiles.push(...folderFiles);
-    } else if (doc.mimeType?.startsWith('audio/') || isAudioExtension(doc.name)) {
+    } else if (
+      doc.mimeType?.startsWith('audio/') ||
+      doc.mimeType === 'video/mp4' ||
+      doc.mimeType === 'video/webm' ||
+      isAudioExtension(doc.name)
+    ) {
       resultFiles.push({
         id: doc.id,
         name: doc.name,
@@ -304,7 +309,12 @@ export async function listAudioFilesFromFolder(folderId, token, maxDepth = 4, cu
     for (const file of files) {
       if (file.mimeType === 'application/vnd.google-apps.folder') {
         subfolderIds.push(file.id);
-      } else if (file.mimeType?.startsWith('audio/') || isAudioExtension(file.name)) {
+      } else if (
+        file.mimeType?.startsWith('audio/') ||
+        file.mimeType === 'video/mp4' ||
+        file.mimeType === 'video/webm' ||
+        isAudioExtension(file.name)
+      ) {
         audioFiles.push({
           id: file.id,
           name: file.name,
@@ -332,7 +342,7 @@ export async function listAudioFilesFromFolder(folderId, token, maxDepth = 4, cu
 }
 
 function isAudioExtension(name = '') {
-  return /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i.test(name);
+  return /\.(mp3|m4a|aac|flac|wav|ogg|opus|mp4|m4v|webm)$/i.test(name);
 }
 
 /**
