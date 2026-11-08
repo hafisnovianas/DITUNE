@@ -113,8 +113,14 @@ export function renderAppShell() {
               <span class="hidden sm:inline">Online</span>
             </div>
 
-            <!-- Settings Button (Header Desktop & Mobile) -->
-            <button id="btn-open-settings-header" class="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition" title="Pengaturan & Kredensial">
+            <!-- Install PWA App Button (Muncul jika browser mendukung instalasi PWA) -->
+            <button id="btn-install-pwa" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition cursor-pointer" title="Instal DITUNE ke Perangkat">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">Instal App</span>
+            </button>
+
+            <!-- Settings Button (Khusus Mobile, di desktop sudah ada di sidebar) -->
+            <button id="btn-open-settings-mobile" class="md:hidden p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition" title="Pengaturan & Kredensial">
               <i data-lucide="settings" class="w-4 h-4"></i>
             </button>
           </div>

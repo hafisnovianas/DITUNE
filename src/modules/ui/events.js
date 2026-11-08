@@ -124,10 +124,12 @@ export class UIController {
     this.previousVolume = 1.0;
     this.isBatchDownloading = false;
     this.downloadingTrackIds = new Set();
+    this.deferredInstallPrompt = null;
 
     this.bindEngineEvents();
     this.bindDOMEvents();
     this.bindNetworkEvents();
+    this.bindPWAEvents();
   }
 
   async init() {
@@ -715,7 +717,6 @@ export class UIController {
     // Settings Modal Open/Close
     const openSettings = () => this.openSettingsModal();
     document.getElementById('btn-open-settings')?.addEventListener('click', openSettings);
-    document.getElementById('btn-open-settings-header')?.addEventListener('click', openSettings);
     document.getElementById('btn-open-settings-mobile')?.addEventListener('click', openSettings);
     document.getElementById('btn-close-settings')?.addEventListener('click', () => this.closeSettingsModal());
 
@@ -795,6 +796,44 @@ export class UIController {
     window.addEventListener('offline', () => {
       this.updateNetworkStatus(false);
       showToast('Mode offline aktif. Anda dapat memutar lagu yang telah di-cache.', 'warning');
+    });
+  }
+
+  bindPWAEvents() {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.deferredInstallPrompt = e;
+      const installBtn = document.getElementById('btn-install-pwa');
+      if (installBtn) {
+        installBtn.classList.remove('hidden');
+        installBtn.classList.add('flex');
+        refreshLucideIcons();
+      }
+    });
+
+    document.getElementById('btn-install-pwa')?.addEventListener('click', async () => {
+      if (!this.deferredInstallPrompt) return;
+      this.deferredInstallPrompt.prompt();
+      const choice = await this.deferredInstallPrompt.userChoice;
+      if (choice?.outcome === 'accepted') {
+        showToast('Memasang DITUNE ke perangkat Anda...', 'success');
+      }
+      this.deferredInstallPrompt = null;
+      const installBtn = document.getElementById('btn-install-pwa');
+      if (installBtn) {
+        installBtn.classList.add('hidden');
+        installBtn.classList.remove('flex');
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      this.deferredInstallPrompt = null;
+      const installBtn = document.getElementById('btn-install-pwa');
+      if (installBtn) {
+        installBtn.classList.add('hidden');
+        installBtn.classList.remove('flex');
+      }
+      showToast('DITUNE berhasil terinstal di perangkat Anda!', 'success');
     });
   }
 

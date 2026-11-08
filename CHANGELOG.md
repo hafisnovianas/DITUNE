@@ -8,7 +8,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
-- Pintasan tombol Pengaturan di bilah navigasi header atas di samping indikator status jaringan.
+- Dukungan tombol instalasi aplikasi Progressive Web App (PWA) di bilah navigasi header saat aplikasi belum terpasang.
 - Fitur sinkronisasi folder 1-klik (`↻ Sinkronkan Lagu`) di header daftar lagu untuk memindai lagu baru di Google Drive tanpa memunculkan dialog Picker.
 - Kartu informasi status dan nama folder terhubung di dalam modal Pengaturan.
 - Penyimpanan persisten metadata folder aktif (`connected_folder`) di IndexedDB.
@@ -41,6 +41,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbaiki pendaftaran ikon `Radio` pada objek pembuat ikon Lucide untuk menghilangkan peringatan konsol.
 
 ### Removed
+- Menghilangkan tombol Pengaturan redundan pada bilah navigasi desktop (hanya dipertahankan pada navigasi mobile).
 - Menghapus seluruh fitur modul generator audio contoh (`demoTracks.js`), tombol "Muat Lagu Contoh" pada sidebar dan library kosong, serta pengujian terkait.
 - Menghapus seluruh form input kredensial kustom (Client ID & API Key) dari modal Pengaturan untuk menyederhanakan pengalaman pengguna murni ke fungsi pemutar musik (*consumer-focused*).
 - Menghapus dependensi dan logika pembacaan/penyimpanan kredensial di `localStorage`.
