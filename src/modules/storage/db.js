@@ -68,21 +68,66 @@ async function getStore(storeName, mode = 'readonly') {
 // ================= TRACKS =================
 
 export async function saveTrack(track) {
-  const store = await getStore('tracks', 'readwrite');
+  const db = await openDB();
+  const tx = db.transaction(['tracks', 'audio_blobs'], 'readwrite');
+  const trackStore = tx.objectStore('tracks');
+  const blobStore = tx.objectStore('audio_blobs');
+
+  let savedTrack = track;
+  const blobReq = blobStore.get(track.id);
+  blobReq.onsuccess = () => {
+    const blobRecord = blobReq.result;
+    const hasBlob = !!blobRecord;
+    const blobSize = hasBlob ? (blobRecord.size || (blobRecord.blob && blobRecord.blob.size) || 0) : 0;
+    savedTrack = {
+      ...track,
+      isCached: hasBlob,
+      size: (hasBlob && blobSize) ? blobSize : (track.size || 0),
+    };
+    if (hasBlob && !savedTrack.cachedAt) {
+      savedTrack.cachedAt = blobRecord.savedAt || Date.now();
+    } else if (!hasBlob) {
+      savedTrack.cachedAt = null;
+    }
+    trackStore.put(savedTrack);
+  };
+
   return new Promise((resolve, reject) => {
-    const req = store.put(track);
-    req.onsuccess = () => resolve(track);
-    req.onerror = (e) => reject(e.target.error);
+    tx.oncomplete = () => {
+      if (track && typeof track === 'object') {
+        Object.assign(track, savedTrack);
+      }
+      resolve(savedTrack);
+    };
+    tx.onerror = (e) => reject(e.target.error);
   });
 }
 
 export async function saveTracks(tracks) {
   const db = await openDB();
-  const tx = db.transaction('tracks', 'readwrite');
-  const store = tx.objectStore('tracks');
+  const tx = db.transaction(['tracks', 'audio_blobs'], 'readwrite');
+  const trackStore = tx.objectStore('tracks');
+  const blobStore = tx.objectStore('audio_blobs');
+
+  const keysReq = blobStore.getAllKeys ? blobStore.getAllKeys() : blobStore.getAll();
+  keysReq.onsuccess = () => {
+    const blobKeys = blobStore.getAllKeys
+      ? new Set(keysReq.result || [])
+      : new Set((keysReq.result || []).map((b) => b.id));
+
+    tracks.forEach((track) => {
+      const hasBlob = blobKeys.has(track.id);
+      track.isCached = hasBlob;
+      if (hasBlob && !track.cachedAt) {
+        track.cachedAt = Date.now();
+      } else if (!hasBlob) {
+        track.cachedAt = null;
+      }
+      trackStore.put(track);
+    });
+  };
 
   return new Promise((resolve, reject) => {
-    tracks.forEach((track) => store.put(track));
     tx.oncomplete = () => resolve(tracks);
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -166,6 +211,30 @@ export async function getAudioBlob(id) {
   });
 }
 
+export async function getAllAudioBlobs() {
+  const store = await getStore('audio_blobs', 'readonly');
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function getAllAudioBlobIds() {
+  const store = await getStore('audio_blobs', 'readonly');
+  return new Promise((resolve, reject) => {
+    if (store.getAllKeys) {
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve(new Set(req.result || []));
+      req.onerror = (e) => reject(e.target.error);
+    } else {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(new Set((req.result || []).map((b) => b.id)));
+      req.onerror = (e) => reject(e.target.error);
+    }
+  });
+}
+
 export async function removeAudioBlob(id) {
   const db = await openDB();
   const tx = db.transaction(['audio_blobs', 'tracks'], 'readwrite');
@@ -236,14 +305,46 @@ export async function setSetting(key, value) {
 
 export async function getStorageStats() {
   const tracks = await getAllTracks();
+  const blobs = await getAllAudioBlobs();
+
+  const blobMap = new Map();
+  let totalBytes = 0;
+  for (const b of blobs) {
+    const size = b.size || (b.blob ? b.blob.size : 0) || 0;
+    blobMap.set(b.id, size);
+    totalBytes += size;
+  }
+
   const totalTracks = tracks.length;
   let cachedCount = 0;
-  let totalBytes = 0;
+  const tracksToHeal = [];
 
   for (const track of tracks) {
-    if (track.isCached) {
+    const hasBlob = blobMap.has(track.id);
+    if (hasBlob) {
       cachedCount++;
-      totalBytes += Number(track.size || 0);
+      if (!track.isCached || (!track.size && blobMap.get(track.id))) {
+        track.isCached = true;
+        if (!track.size) track.size = blobMap.get(track.id);
+        if (!track.cachedAt) track.cachedAt = Date.now();
+        tracksToHeal.push(track);
+      }
+    } else if (track.isCached) {
+      track.isCached = false;
+      track.cachedAt = null;
+      tracksToHeal.push(track);
+    }
+  }
+
+  if (totalTracks === 0 && blobMap.size > 0) {
+    cachedCount = blobMap.size;
+  }
+
+  if (tracksToHeal.length > 0) {
+    try {
+      await saveTracks(tracksToHeal);
+    } catch {
+      // non-fatal healing attempt
     }
   }
 

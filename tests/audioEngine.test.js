@@ -58,6 +58,7 @@ before(() => {
 });
 
 import { AudioEngine } from '../src/modules/player/audio.js';
+import { saveAudioBlob, saveTrack, getTrack } from '../src/modules/storage/db.js';
 
 describe('AudioEngine Unit Tests', () => {
   test('should initialize with default states', () => {
@@ -177,5 +178,70 @@ describe('AudioEngine Unit Tests', () => {
     const req2 = engine.playRequestId;
     assert.equal(req2, 2);
     assert.notEqual(req1, req2);
+  });
+
+  test('loadAndPlay should self-heal isCached, size, and persist to IndexedDB when blob exists', async () => {
+    const engine = new AudioEngine();
+    const track = {
+      id: 'self-heal-audio',
+      title: 'Heal Song',
+      name: 'healsong.mp3',
+      artist: 'Heal Artist',
+      duration: 120,
+      isCached: false,
+    };
+
+    const mockBlob = new Blob(['mock audio stream content'], { type: 'audio/mpeg' });
+    await saveAudioBlob('self-heal-audio', mockBlob, 'audio/mpeg');
+
+    // Track was in un-cached state in memory
+    assert.equal(track.isCached, false);
+
+    await engine.loadAndPlay(track);
+
+    assert.equal(track.isCached, true, 'track.isCached should be healed to true');
+    assert.equal(track.size, mockBlob.size, 'track.size should match blob.size');
+    assert.ok(track.cachedAt > 0, 'track.cachedAt should be set');
+
+    const persisted = await getTrack('self-heal-audio');
+    assert.ok(persisted);
+    assert.equal(persisted.isCached, true, 'persisted track should be isCached = true');
+  });
+
+  test('loadedmetadata should heal missing duration and emit trackChange', async () => {
+    const engine = new AudioEngine();
+    const track = {
+      id: 'duration-heal-track',
+      title: 'Zero Duration Song',
+      name: 'song.mp3',
+      artist: 'Artist',
+      duration: 0,
+      isCached: true,
+    };
+
+    const mockBlob = new Blob(['mock audio'], { type: 'audio/mpeg' });
+    await saveAudioBlob('duration-heal-track', mockBlob, 'audio/mpeg');
+    await saveTrack(track);
+
+    let emittedTrack = null;
+    engine.on('trackChange', ({ track: t }) => {
+      emittedTrack = t;
+    });
+
+    await engine.loadAndPlay(track);
+
+    // MockAudio has duration = 180 by default. Trigger loadedmetadata event
+    const listeners = engine.audio._listeners['loadedmetadata'] || [];
+    for (const fn of listeners) {
+      fn();
+    }
+
+    assert.equal(engine.currentTrack.duration, 180, 'engine.currentTrack.duration should be healed to 180');
+    assert.ok(emittedTrack);
+    assert.equal(emittedTrack.duration, 180, 'trackChange should be emitted with healed duration');
+
+    const persisted = await getTrack('duration-heal-track');
+    assert.ok(persisted);
+    assert.equal(persisted.duration, 180, 'Persisted track duration in IndexedDB should be 180');
   });
 });

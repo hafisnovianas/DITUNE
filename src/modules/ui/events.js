@@ -42,6 +42,7 @@ import {
   saveTracks,
   saveAudioBlob,
   getAudioBlob,
+  getAllAudioBlobIds,
   saveCover,
   getStorageStats,
   clearAllCache,
@@ -134,6 +135,30 @@ export class UIController {
 
   async reloadTracks() {
     this.allTracks = await getAllTracks();
+    try {
+      const blobIds = await getAllAudioBlobIds();
+      const tracksToHeal = [];
+
+      for (const track of this.allTracks) {
+        const hasBlob = blobIds.has(track.id);
+        if (hasBlob && !track.isCached) {
+          track.isCached = true;
+          if (!track.cachedAt) track.cachedAt = Date.now();
+          tracksToHeal.push(track);
+        } else if (!hasBlob && track.isCached) {
+          track.isCached = false;
+          track.cachedAt = null;
+          tracksToHeal.push(track);
+        }
+      }
+
+      if (tracksToHeal.length > 0) {
+        await saveTracks(tracksToHeal);
+      }
+    } catch (e) {
+      console.warn('Failed to reconcile tracks with audio_blobs:', e);
+    }
+
     this.updateOfflineBadge();
   }
 
@@ -233,6 +258,11 @@ export class UIController {
 
   bindEngineEvents() {
     this.engine.on('trackChange', ({ track, coverUrl }) => {
+      const match = this.allTracks.find((t) => t.id === track.id);
+      if (match) {
+        Object.assign(match, track);
+      }
+
       // Update player bar info
       const titleEl = document.getElementById('player-title');
       const artistEl = document.getElementById('player-artist');
@@ -791,9 +821,10 @@ export class UIController {
 
       showToast(`Menyinkronkan ${pickedFiles.length} file dengan library DITUNE...`, 'info');
 
-      // Fetch existing tracks from IndexedDB to preserve metadata and cache status
+      // Fetch existing tracks and blobs to preserve metadata and cache status
       const existingTracks = await getAllTracks();
       const existingMap = new Map(existingTracks.map((t) => [t.id, t]));
+      const blobIds = await getAllAudioBlobIds();
 
       let existingCount = 0;
       let newCount = 0;
@@ -805,11 +836,7 @@ export class UIController {
 
         if (existing) {
           // Track already exists: preserve parsed ID3 metadata, cover, and cache status
-          let isCached = existing.isCached;
-          if (!isCached) {
-            const blob = await getAudioBlob(file.id);
-            if (blob) isCached = true;
-          }
+          const isCached = existing.isCached || blobIds.has(file.id);
 
           tracksToSave.push({
             ...existing,
@@ -817,11 +844,12 @@ export class UIController {
             size: file.size || existing.size,
             mimeType: file.mimeType || existing.mimeType,
             isCached,
+            cachedAt: isCached ? (existing.cachedAt || Date.now()) : null,
           });
           existingCount++;
         } else {
           // New track from Google Drive
-          const blob = await getAudioBlob(file.id);
+          const isCached = blobIds.has(file.id);
           tracksToSave.push({
             id: file.id,
             name: file.name,
@@ -831,8 +859,8 @@ export class UIController {
             duration: 0,
             size: file.size || 0,
             mimeType: file.mimeType || 'audio/mpeg',
-            isCached: !!blob,
-            cachedAt: blob ? Date.now() : null,
+            isCached,
+            cachedAt: isCached ? Date.now() : null,
             hasCover: false,
           });
           newCount++;
@@ -842,6 +870,7 @@ export class UIController {
       await saveTracks(tracksToSave);
       await this.reloadTracks();
       this.renderMainContent();
+      await this.updateStorageInfo();
 
       if (existingCount > 0 && newCount > 0) {
         showToast(`${newCount} lagu baru ditambahkan, ${existingCount} lagu diperbarui & cache offline tetap utuh!`, 'success');
@@ -1044,6 +1073,7 @@ export class UIController {
 
       await this.reloadTracks();
       this.renderMainContent();
+      await this.updateStorageInfo();
       showToast(`Selesai! ${completed} dari ${uncached.length} lagu berhasil disimpan offline.`, 'success');
     } finally {
       this.isBatchDownloading = false;

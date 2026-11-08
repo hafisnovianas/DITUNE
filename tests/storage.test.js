@@ -11,6 +11,8 @@ import {
   deleteTrack,
   saveAudioBlob,
   getAudioBlob,
+  getAllAudioBlobs,
+  getAllAudioBlobIds,
   removeAudioBlob,
   saveCover,
   getCover,
@@ -162,5 +164,77 @@ describe('IndexedDB Storage Engine', () => {
     assert.equal(await getTrack('del-1'), null);
     assert.equal(await getAudioBlob('del-1'), null);
     assert.equal(await getCover('del-1'), null);
+  });
+
+  test('getAllAudioBlobIds should return a set of all saved blob IDs', async () => {
+    await saveAudioBlob('blob-1', new Blob(['abc']), 'audio/mpeg');
+    await saveAudioBlob('blob-2', new Blob(['def']), 'audio/mpeg');
+
+    const ids = await getAllAudioBlobIds();
+    assert.ok(ids instanceof Set);
+    assert.equal(ids.size, 2);
+    assert.ok(ids.has('blob-1'));
+    assert.ok(ids.has('blob-2'));
+    assert.ok(!ids.has('blob-3'));
+  });
+
+  test('getStorageStats should reconcile against audio_blobs SSOT even if track isCached is false', async () => {
+    // Simulate desynchronized state: track says isCached: false, but blob exists
+    await saveAudioBlob('desync-1', new Blob(['1234567890']), 'audio/mpeg');
+    // Save track with isCached explicitly false (bypass auto-heal to simulate stale DB record)
+    const db = await openDB();
+    const tx = db.transaction('tracks', 'readwrite');
+    tx.objectStore('tracks').put({ id: 'desync-1', title: 'Desync Track', isCached: false, size: 0 });
+    await new Promise((resolve) => { tx.oncomplete = resolve; });
+
+    const stats = await getStorageStats();
+    assert.equal(stats.totalTracks, 1);
+    assert.equal(stats.cachedCount, 1, 'Should count track as cached because blob exists in audio_blobs');
+    assert.equal(stats.totalBytes, 10, 'Should measure bytes from audio_blobs');
+
+    // Self-healing check: database record must be healed
+    const healed = await getTrack('desync-1');
+    assert.equal(healed.isCached, true, 'Stored track should be healed to isCached = true');
+    assert.equal(healed.size, 10, 'Stored track size should be healed from blob');
+  });
+
+  test('getStorageStats should reconcile tracks when track claims isCached but blob is missing', async () => {
+    const db = await openDB();
+    const tx = db.transaction('tracks', 'readwrite');
+    tx.objectStore('tracks').put({ id: 'ghost-1', title: 'Ghost Track', isCached: true, size: 1000 });
+    await new Promise((resolve) => { tx.oncomplete = resolve; });
+
+    const stats = await getStorageStats();
+    assert.equal(stats.totalTracks, 1);
+    assert.equal(stats.cachedCount, 0, 'Ghost track without blob should not be counted as cached');
+    assert.equal(stats.totalBytes, 0);
+
+    const healed = await getTrack('ghost-1');
+    assert.equal(healed.isCached, false, 'Ghost track in store should be healed to isCached = false');
+  });
+
+  test('saveTrack and saveTracks should preserve isCached if audio blob exists and enforce false if missing', async () => {
+    await saveAudioBlob('heal-1', new Blob(['content123']), 'audio/mpeg');
+
+    // Trying to save track with isCached: false when blob exists
+    const inMemTrack = { id: 'heal-1', title: 'Heal 1', isCached: false };
+    await saveTrack(inMemTrack);
+    assert.equal(inMemTrack.isCached, true, 'in-memory reference must be updated to isCached = true');
+    const track = await getTrack('heal-1');
+    assert.equal(track.isCached, true, 'saveTrack must preserve isCached = true when blob exists');
+
+    // Batch saving with isCached: false when blob exists
+    const batchList = [{ id: 'heal-1', title: 'Heal Batch', isCached: false }];
+    await saveTracks(batchList);
+    assert.equal(batchList[0].isCached, true, 'in-memory batch reference must be updated to isCached = true');
+    const trackAfterBatch = await getTrack('heal-1');
+    assert.equal(trackAfterBatch.isCached, true, 'saveTracks must preserve isCached = true when blob exists');
+
+    // Saving track claiming isCached: true when blob does NOT exist
+    const ghostTrack = { id: 'no-blob', title: 'No Blob Track', isCached: true };
+    await saveTrack(ghostTrack);
+    assert.equal(ghostTrack.isCached, false, 'saveTrack must enforce isCached = false when blob is missing');
+    const savedGhost = await getTrack('no-blob');
+    assert.equal(savedGhost.isCached, false, 'Stored track must have isCached = false when blob is missing');
   });
 });

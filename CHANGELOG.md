@@ -8,6 +8,8 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Fixed
+- Menambahkan rekonsiliasi mandiri (Self-Healing SSOT) antara tabel audio_blobs dan metadata tracks agar status Offline dan durasi lagu tetap sinkron secara otomatis.
+- Mengubah strategi Service Worker PWA untuk navigasi HTML menjadi Network-First (cache ditune-shell-v2) agar pembaruan rilis web langsung aktif tanpa tertahan cache lama.
 - Mencegah reset status cache dan penghapusan metadata lagu lama saat memilih folder Google Drive berulang melalui mekanisme Smart Merge berbasis ID file.
 - Memperbaiki parsing metadata ID3 di browser dengan menginisialisasi polyfill `Buffer` global untuk pustaka `music-metadata-browser`.
 - Memperbaiki pendaftaran ikon `Radio` pada objek pembuat ikon Lucide untuk menghilangkan peringatan konsol.

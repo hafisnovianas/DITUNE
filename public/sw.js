@@ -4,7 +4,7 @@
  * Audio Blobs are cached separately in IndexedDB.
  */
 
-const CACHE_NAME = 'ditune-shell-v1';
+const CACHE_NAME = 'ditune-shell-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -54,25 +54,42 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // HTML Navigation: Network-First strategy (always fetch latest deployment, fallback to cache when offline)
+  const isHtmlNavigation =
+    event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname === '/index.html' ||
+    (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'));
+
+  if (isHtmlNavigation) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+              cache.put('/index.html', responseToCache.clone());
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            return cached || caches.match('/index.html') || caches.match('/');
+          });
+        })
+    );
+    return;
+  }
+
+  // Other assets (hashed JS, CSS, images, icons, fonts): Cache-First with network fallback & cache populate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch fresh copy in background (Stale-While-Revalidate)
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
-            }
-          })
-          .catch(() => {
-            // offline, ignore
-          });
         return cachedResponse;
       }
 
-      // Not in cache, fetch from network
       return fetch(event.request)
         .then((networkResponse) => {
           if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
@@ -87,10 +104,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // If offline and requesting page navigation, return cached index.html
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
+          // If offline and request is an asset that failed, return undefined
         });
     })
   );

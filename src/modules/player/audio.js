@@ -68,6 +68,19 @@ export class AudioEngine {
       updateMediaSessionPositionState(currentTime, duration);
     });
 
+    this.audio.addEventListener('loadedmetadata', () => {
+      if (this.currentTrack && (!this.currentTrack.duration || this.currentTrack.duration === 0)) {
+        if (Number.isFinite(this.audio.duration) && this.audio.duration > 0) {
+          const dur = Math.round(this.audio.duration);
+          this.currentTrack.duration = dur;
+          saveTrack(this.currentTrack).catch((err) => {
+            console.warn('[AudioEngine] Failed to save healed duration:', err);
+          });
+          this.emit('trackChange', { track: this.currentTrack, coverUrl: this.currentCoverUrl });
+        }
+      }
+    });
+
     this.audio.addEventListener('ended', () => {
       this.handleTrackEnded();
     });
@@ -147,15 +160,31 @@ export class AudioEngine {
       this.currentCoverUrl = null;
     }
 
-    // Try loading cover art from IndexedDB
+    // Fast parallel check of cover art and cached audio blob from IndexedDB
+    let audioBlob = null;
     try {
-      const coverBlob = await getCover(track.id);
+      const [coverBlob, cachedBlob] = await Promise.all([
+        getCover(track.id).catch(() => null),
+        getAudioBlob(track.id).catch(() => null),
+      ]);
       if (requestId !== this.playRequestId) return;
+
       if (coverBlob) {
         this.currentCoverUrl = URL.createObjectURL(coverBlob);
       }
+
+      if (cachedBlob) {
+        audioBlob = cachedBlob;
+        track.isCached = true;
+        if (!track.size || track.size !== cachedBlob.size) {
+          track.size = cachedBlob.size;
+        }
+        if (!track.cachedAt) {
+          track.cachedAt = Date.now();
+        }
+      }
     } catch (_) {
-      // ignore cover read error
+      // ignore read error
     }
 
     if (requestId !== this.playRequestId) return;
@@ -164,13 +193,45 @@ export class AudioEngine {
     updateMediaSessionMetadata(this.currentTrack, this.currentCoverUrl);
 
     try {
-      let audioBlob = null;
+      if (audioBlob) {
+        let shouldSave = true;
 
-      // 1. Check IndexedDB first (Fast offline playback)
-      audioBlob = await getAudioBlob(track.id);
-      if (requestId !== this.playRequestId) return;
+        // Heal duration and metadata if missing (0:00 or default values)
+        if (!track.duration || track.duration === 0 || track.title === track.name || track.artist === 'Unknown Artist') {
+          try {
+            const meta = await parseAudioMetadata(audioBlob, track.name);
+            if (track.title === track.name && meta.title) {
+              track.title = meta.title;
+              shouldSave = true;
+            }
+            if (track.artist === 'Unknown Artist' && meta.artist) {
+              track.artist = meta.artist;
+              shouldSave = true;
+            }
+            if ((track.album === 'Unknown Album' || track.album === 'Google Drive') && meta.album) {
+              track.album = meta.album;
+              shouldSave = true;
+            }
+            if ((!track.duration || track.duration === 0) && meta.duration > 0) {
+              track.duration = meta.duration;
+              shouldSave = true;
+            }
+            if (meta.coverBlob && !this.currentCoverUrl) {
+              await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
+              if (requestId !== this.playRequestId) return;
+              this.currentCoverUrl = URL.createObjectURL(meta.coverBlob);
+              track.hasCover = true;
+              shouldSave = true;
+            }
+          } catch (metaErr) {
+            console.warn('[AudioEngine] Metadata heal error:', metaErr);
+          }
+        }
 
-      if (!audioBlob) {
+        if (shouldSave) {
+          await saveTrack(track);
+        }
+      } else {
         if (track.url) {
           // Direct URL (e.g. static link)
           const resp = await fetch(track.url);
