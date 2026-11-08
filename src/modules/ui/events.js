@@ -7,6 +7,7 @@ import {
   createIcons,
   Disc,
   FolderPlus,
+  Folder,
   Music,
   Users,
   Disc3,
@@ -35,6 +36,7 @@ import {
   User,
   Radio,
   Loader,
+  RefreshCw,
 } from 'lucide';
 
 import {
@@ -48,10 +50,15 @@ import {
   clearAllCache,
   clearAllData,
   saveTrack,
+  getSetting,
+  setSetting,
 } from '../storage/db.js';
 import {
   hasCredentials,
   openGooglePicker,
+  listAudioFilesFromFolder,
+  getAccessToken,
+  initGoogleAuth,
   downloadDriveAudioFile,
   clearSessionToken,
 } from '../auth/gdrive.js';
@@ -71,6 +78,7 @@ export function refreshLucideIcons() {
     icons: {
       Disc,
       FolderPlus,
+      Folder,
       Music,
       Users,
       Disc3,
@@ -99,6 +107,7 @@ export function refreshLucideIcons() {
       User,
       Radio,
       Loader,
+      RefreshCw,
     },
   });
 }
@@ -498,6 +507,12 @@ export class UIController {
           return;
         }
 
+        // Sync connected folder button
+        if (e.target.closest('#btn-sync-folder')) {
+          this.syncConnectedFolder();
+          return;
+        }
+
         // Empty picker button
         if (e.target.closest('#btn-empty-picker')) {
           this.triggerDrivePicker();
@@ -719,6 +734,7 @@ export class UIController {
       if (confirm('PERINGATAN: Semua lagu dan cache di DITUNE akan dihapus total. Lanjutkan?')) {
         clearSessionToken();
         await clearAllData();
+        await setSetting('connected_folder', null);
         this.engine.pause();
         this.engine.playlist = [];
         this.engine.currentTrack = null;
@@ -795,7 +811,7 @@ export class UIController {
     refreshLucideIcons();
   }
 
-  openSettingsModal() {
+  async openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
 
@@ -816,6 +832,21 @@ export class UIController {
       }
     }
 
+    // Update Connected Folder status in modal
+    try {
+      const folder = await getSetting('connected_folder');
+      const folderNameEl = document.getElementById('connected-folder-name');
+      const folderBadgeEl = document.getElementById('connected-folder-badge');
+      if (folderNameEl) {
+        folderNameEl.textContent = folder?.name || 'Belum ada folder terhubung';
+      }
+      if (folderBadgeEl) {
+        folderBadgeEl.textContent = folder?.name ? 'Tersimpan' : 'Kosong';
+      }
+    } catch (e) {
+      console.warn('Gagal membaca info connected_folder:', e);
+    }
+
     this.updateStorageInfo();
 
     modal.classList.remove('hidden');
@@ -831,6 +862,71 @@ export class UIController {
     }
   }
 
+  /**
+   * Helper SSOT: Merge remote audio files with local IndexedDB records
+   * Preserves cached blobs, durations, ID3 metadata, and cover art.
+   */
+  async mergeAndSaveDriveFiles(remoteFiles, folderInfo = null) {
+    if (folderInfo && folderInfo.id) {
+      await setSetting('connected_folder', {
+        id: folderInfo.id,
+        name: folderInfo.name || 'Folder Musik',
+        connectedAt: Date.now(),
+      });
+    }
+
+    const existingTracks = await getAllTracks();
+    const existingMap = new Map(existingTracks.map((t) => [t.id, t]));
+    const blobIds = await getAllAudioBlobIds();
+
+    let existingCount = 0;
+    let newCount = 0;
+    const tracksToSave = [];
+
+    for (const file of remoteFiles) {
+      const existing = existingMap.get(file.id);
+
+      if (existing) {
+        // Track already exists: preserve parsed ID3 metadata, cover, and cache status
+        const isCached = existing.isCached || blobIds.has(file.id);
+
+        tracksToSave.push({
+          ...existing,
+          name: file.name,
+          size: file.size || existing.size,
+          mimeType: file.mimeType || existing.mimeType,
+          isCached,
+          cachedAt: isCached ? (existing.cachedAt || Date.now()) : null,
+        });
+        existingCount++;
+      } else {
+        // New track from Google Drive
+        const isCached = blobIds.has(file.id);
+        tracksToSave.push({
+          id: file.id,
+          name: file.name,
+          title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
+          artist: 'Unknown Artist',
+          album: 'Google Drive',
+          duration: 0,
+          size: file.size || 0,
+          mimeType: file.mimeType || 'audio/mpeg',
+          isCached,
+          cachedAt: isCached ? Date.now() : null,
+          hasCover: false,
+        });
+        newCount++;
+      }
+    }
+
+    await saveTracks(tracksToSave);
+    await this.reloadTracks();
+    this.renderMainContent();
+    await this.updateStorageInfo();
+
+    return { newCount, existingCount };
+  }
+
   async triggerDrivePicker() {
     if (!hasCredentials()) {
       showToast('Kredensial Google belum terkonfigurasi pada sistem aplikasi.', 'warning');
@@ -840,65 +936,23 @@ export class UIController {
 
     try {
       showToast('Membuka Google Picker...', 'info');
-      const pickedFiles = await openGooglePicker();
+      const pickerResult = await openGooglePicker();
 
-      if (!pickedFiles || pickedFiles.length === 0) {
+      if (!pickerResult) {
+        return;
+      }
+
+      // Handle both { files, folder } and direct array (fallback safety)
+      const pickedFiles = Array.isArray(pickerResult) ? pickerResult : (pickerResult.files || []);
+      const pickedFolder = pickerResult.folder || null;
+
+      if (pickedFiles.length === 0) {
         showToast('Tidak ada file audio yang dipilih.', 'info');
         return;
       }
 
       showToast(`Menyinkronkan ${pickedFiles.length} file dengan library DITUNE...`, 'info');
-
-      // Fetch existing tracks and blobs to preserve metadata and cache status
-      const existingTracks = await getAllTracks();
-      const existingMap = new Map(existingTracks.map((t) => [t.id, t]));
-      const blobIds = await getAllAudioBlobIds();
-
-      let existingCount = 0;
-      let newCount = 0;
-
-      const tracksToSave = [];
-
-      for (const file of pickedFiles) {
-        const existing = existingMap.get(file.id);
-
-        if (existing) {
-          // Track already exists: preserve parsed ID3 metadata, cover, and cache status
-          const isCached = existing.isCached || blobIds.has(file.id);
-
-          tracksToSave.push({
-            ...existing,
-            name: file.name,
-            size: file.size || existing.size,
-            mimeType: file.mimeType || existing.mimeType,
-            isCached,
-            cachedAt: isCached ? (existing.cachedAt || Date.now()) : null,
-          });
-          existingCount++;
-        } else {
-          // New track from Google Drive
-          const isCached = blobIds.has(file.id);
-          tracksToSave.push({
-            id: file.id,
-            name: file.name,
-            title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
-            artist: 'Unknown Artist',
-            album: 'Google Drive',
-            duration: 0,
-            size: file.size || 0,
-            mimeType: file.mimeType || 'audio/mpeg',
-            isCached,
-            cachedAt: isCached ? Date.now() : null,
-            hasCover: false,
-          });
-          newCount++;
-        }
-      }
-
-      await saveTracks(tracksToSave);
-      await this.reloadTracks();
-      this.renderMainContent();
-      await this.updateStorageInfo();
+      const { newCount, existingCount } = await this.mergeAndSaveDriveFiles(pickedFiles, pickedFolder);
 
       if (existingCount > 0 && newCount > 0) {
         showToast(`${newCount} lagu baru ditambahkan, ${existingCount} lagu diperbarui & cache offline tetap utuh!`, 'success');
@@ -915,6 +969,55 @@ export class UIController {
       } else {
         showToast(`Gagal memilih file: ${err.message}`, 'error');
       }
+    }
+  }
+
+  async syncConnectedFolder() {
+    if (!hasCredentials()) {
+      showToast('Kredensial Google belum terkonfigurasi pada sistem aplikasi.', 'warning');
+      this.openSettingsModal();
+      return;
+    }
+
+    const folder = await getSetting('connected_folder');
+    if (!folder || !folder.id) {
+      showToast('Belum ada folder yang terhubung. Silakan pilih folder musik terlebih dahulu.', 'warning');
+      this.triggerDrivePicker();
+      return;
+    }
+
+    const syncBtn = document.getElementById('btn-sync-folder');
+    const syncIcon = syncBtn?.querySelector('[data-lucide="refresh-cw"]');
+
+    try {
+      if (syncIcon) syncIcon.classList.add('animate-spin');
+      if (syncBtn) syncBtn.disabled = true;
+
+      showToast(`Memeriksa lagu baru di folder "${folder.name}"...`, 'info');
+
+      await initGoogleAuth();
+      const token = await getAccessToken(true);
+
+      const remoteFiles = await listAudioFilesFromFolder(folder.id, token);
+
+      if (!remoteFiles || remoteFiles.length === 0) {
+        showToast(`Tidak ditemukan file audio di folder "${folder.name}".`, 'info');
+        return;
+      }
+
+      const { newCount, existingCount } = await this.mergeAndSaveDriveFiles(remoteFiles, folder);
+
+      if (newCount > 0) {
+        showToast(`Sinkronisasi selesai! ${newCount} lagu baru ditambahkan (${existingCount} lagu sinkron).`, 'success');
+      } else {
+        showToast(`Pustaka musik sudah mutakhir (${existingCount} lagu di "${folder.name}").`, 'info');
+      }
+    } catch (err) {
+      console.error('Sync folder error:', err);
+      showToast(`Gagal menyinkronkan folder: ${err.message}`, 'error');
+    } finally {
+      if (syncIcon) syncIcon.classList.remove('animate-spin');
+      if (syncBtn) syncBtn.disabled = false;
     }
   }
 

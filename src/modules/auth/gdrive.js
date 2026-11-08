@@ -213,8 +213,8 @@ export async function openGooglePicker() {
           if (data.action === window.google.picker.Action.PICKED) {
             const docs = data[window.google.picker.Response.DOCUMENTS] || [];
             try {
-              const tracks = await processPickedDocuments(docs, token);
-              resolve(tracks);
+              const result = await processPickedDocuments(docs, token);
+              resolve(result);
             } catch (err) {
               reject(err);
             }
@@ -238,6 +238,7 @@ export async function openGooglePicker() {
  */
 async function processPickedDocuments(docs, token) {
   const resultFiles = [];
+  let selectedFolder = null;
 
   for (const doc of docs) {
     const isFolder =
@@ -248,6 +249,8 @@ async function processPickedDocuments(docs, token) {
     if (isFolder) {
       // Query files inside this folder recursively
       const folderId = doc.id;
+      const folderName = doc.name || 'Folder Musik';
+      selectedFolder = { id: folderId, name: folderName };
       const folderFiles = await listAudioFilesFromFolder(folderId, token);
       resultFiles.push(...folderFiles);
     } else if (doc.mimeType?.startsWith('audio/') || isAudioExtension(doc.name)) {
@@ -260,7 +263,7 @@ async function processPickedDocuments(docs, token) {
     }
   }
 
-  return resultFiles;
+  return { files: resultFiles, folder: selectedFolder };
 }
 
 /**

@@ -266,7 +266,7 @@ export function renderAppShell() {
         <div class="p-6 overflow-y-auto space-y-6 text-sm text-zinc-300">
           
           <!-- Connection Status Card -->
-          <div class="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-2.5">
+          <div class="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-zinc-400">Integrasi Google Drive</span>
               <div id="status-credential-badge">
@@ -276,6 +276,21 @@ export function renderAppShell() {
                 </span>
               </div>
             </div>
+
+            <!-- Connected Folder Info -->
+            <div id="connected-folder-info" class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800/80 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2 min-w-0 pr-2">
+                <i data-lucide="folder" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                <div class="min-w-0">
+                  <p class="text-[10px] text-zinc-500 font-medium">Folder Terhubung</p>
+                  <p id="connected-folder-name" class="font-semibold text-zinc-200 truncate">Belum ada folder terhubung</p>
+                </div>
+              </div>
+              <span id="connected-folder-badge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-zinc-400 flex-shrink-0">
+                Tersimpan
+              </span>
+            </div>
+
             <p class="text-xs text-zinc-400 leading-relaxed">
               DITUNE terintegrasi resmi dengan Google Identity Services & Google Picker menggunakan scope aman <code class="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">drive.readonly</code>. Lagu diputar langsung dari folder Google Drive Anda secara privat tanpa perantara.
             </p>
@@ -416,6 +431,12 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         <div>
           <h2 class="text-2xl font-black text-white">Daftar Lagu</h2>
           <p class="text-xs text-zinc-400 mt-0.5">${tracks.length} lagu tersedia</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-sync-folder" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer" title="Periksa dan sinkronkan lagu baru dari Google Drive">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Sinkronkan Lagu</span>
+          </button>
         </div>
       </div>
 

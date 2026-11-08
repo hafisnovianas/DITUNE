@@ -2,4 +2,3 @@
 - [x] ~~ketika sedang download lagu tidak terlihat progressnya, dikira macet~~ (Selesai)
 - [x] ~~ketika pilih folder lagi bahkan folder yang sama, semua lagu yang sebelumnya hilang dan unduh baru, solusinya?~~ (Selesai - Smart Merge & Cache Preservation)
 - [x] ~~pilih folder drive itu harusnya hilang ngga sih kalau udah pilih? soalnya orang kira bisa milih banyak folder jadinya.~~ (Selesai - Sembunyikan dari sidebar saat ada lagu, pindahkan ke Pengaturan)
-- [ ] ini mirip login pake google gitu ya, hmm. gimana kalau kita buat aja login pake google langsung, ibaratnya orang ngira buat login akun. jadi permanen gtu?
