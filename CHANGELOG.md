@@ -34,6 +34,8 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Memperbaiki indikator unduhan yang berlebihan: menghilangkan toast mengambang saat memutar lagu biasa dan mengembalikan kemurnian slider/timer player bar khusus untuk posisi pemutaran audio.
+- Menyeragamkan nama album bawaan menjadi `Unknown Album` serta merekonsiliasi otomatis lagu yang sebelumnya terdata sebagai `Google Drive`.
 - Memperbaiki tata letak shell aplikasi menjadi Flex Column semantik sehingga Player Bar tidak lagi menimpa tombol Pengaturan dan status penyimpanan di sidebar.
 - Menambahkan rekonsiliasi mandiri (Self-Healing SSOT) antara tabel audio_blobs dan metadata tracks agar status Offline dan durasi lagu tetap sinkron secara otomatis.
 - Mengubah strategi Service Worker PWA untuk navigasi HTML menjadi Network-First (cache ditune-shell-v2) agar pembaruan rilis web langsung aktif tanpa tertahan cache lama.

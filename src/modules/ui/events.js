@@ -153,13 +153,25 @@ export class UIController {
 
       for (const track of this.allTracks) {
         const hasBlob = blobIds.has(track.id);
+        let needSave = false;
+
         if (hasBlob && !track.isCached) {
           track.isCached = true;
           if (!track.cachedAt) track.cachedAt = Date.now();
-          tracksToHeal.push(track);
+          needSave = true;
         } else if (!hasBlob && track.isCached) {
           track.isCached = false;
           track.cachedAt = null;
+          needSave = true;
+        }
+
+        // Heal legacy hardcoded album name
+        if (track.album === 'Google Drive') {
+          track.album = 'Unknown Album';
+          needSave = true;
+        }
+
+        if (needSave) {
           tracksToHeal.push(track);
         }
       }
@@ -378,15 +390,8 @@ export class UIController {
 
     this.engine.on('loading', ({ isLoading, percent, track }) => {
       const btnPlayPause = document.getElementById('btn-play-pause');
-      const timeCurEl = document.getElementById('time-current');
-      const barFill = document.getElementById('progress-bar-fill');
 
       if (isLoading) {
-        if (timeCurEl) timeCurEl.textContent = `${percent}%`;
-        if (barFill) {
-          barFill.style.width = `${percent}%`;
-          barFill.classList.add('animate-pulse');
-        }
         if (btnPlayPause) {
           btnPlayPause.innerHTML = `
             <svg class="w-5 h-5 animate-spin text-zinc-950" fill="none" viewBox="0 0 24 24">
@@ -397,13 +402,8 @@ export class UIController {
         }
         if (track) {
           this.updateTrackDownloadUI(track.id, percent);
-          showProgressToast('stream-cache', `Memuat: ${track.title || track.name}`, percent);
         }
       } else {
-        if (barFill) {
-          barFill.classList.remove('animate-pulse');
-        }
-        removeProgressToast('stream-cache');
         if (btnPlayPause) {
           btnPlayPause.innerHTML = this.engine.isPlaying
             ? '<i id="icon-play-state" data-lucide="pause" class="w-5 h-5 fill-current"></i>'
@@ -947,7 +947,7 @@ export class UIController {
           name: file.name,
           title: file.name.replace(/\.[a-zA-Z0-9]+$/, '').trim(),
           artist: 'Unknown Artist',
-          album: 'Google Drive',
+          album: 'Unknown Album',
           duration: 0,
           size: file.size || 0,
           mimeType: file.mimeType || 'audio/mpeg',
@@ -1098,14 +1098,12 @@ export class UIController {
 
     this.downloadingTrackIds.add(trackId);
     this.updateTrackDownloadUI(trackId, 0);
-    showProgressToast(trackId, `Mengunduh: ${track.title || track.name}`, 0);
 
     try {
       const result = await downloadDriveAudioFile(
         track.id,
         (percent) => {
           this.updateTrackDownloadUI(trackId, percent);
-          showProgressToast(trackId, `Mengunduh: ${track.title || track.name}`, percent);
         },
         track.size
       );
@@ -1143,7 +1141,6 @@ export class UIController {
       }
     } catch (err) {
       console.error('Download single track error:', err);
-      removeProgressToast(trackId);
       this.renderMainContent();
       showToast(`Gagal mengunduh: ${err.message}`, 'error');
     } finally {
