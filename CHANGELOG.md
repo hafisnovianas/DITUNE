@@ -20,6 +20,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Menghapus dependensi dan logika pembacaan/penyimpanan kredensial di `localStorage`.
 
 ### Changed
+- Menyembunyikan tombol "Pilih Folder Drive" dari sidebar dan mobile header saat library sudah terisi lagu untuk mencegah persepsi multi-folder, serta menyediakan tombol "Ganti Folder Musik Google Drive" di dalam modal Pengaturan.
 - Mengubah OAuth scope dari `drive.file` menjadi `drive.readonly` agar fitur pemilihan 1 folder musik dapat memindai dan memuat semua file audio di dalamnya secara otomatis.
 - Menyederhanakan modal Pengaturan agar murni menampilkan status koneksi Google Drive, manajemen memori cache musik offline, dan informasi aplikasi.
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.

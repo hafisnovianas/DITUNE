@@ -40,7 +40,7 @@ export function renderAppShell() {
         </div>
 
         <!-- Drive Action Buttons -->
-        <div class="pt-2">
+        <div id="sidebar-picker-container" class="pt-2">
           <button id="btn-open-picker" class="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
             <i data-lucide="folder-plus" class="w-5 h-5"></i>
             <span>Pilih Folder Drive</span>
@@ -279,6 +279,12 @@ export function renderAppShell() {
             <p class="text-xs text-zinc-400 leading-relaxed">
               DITUNE terintegrasi resmi dengan Google Identity Services & Google Picker menggunakan scope aman <code class="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">drive.readonly</code>. Lagu diputar langsung dari folder Google Drive Anda secara privat tanpa perantara.
             </p>
+            <div class="pt-1">
+              <button id="btn-change-folder" class="w-full py-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+                <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                <span>Ganti Folder Musik Google Drive</span>
+              </button>
+            </div>
           </div>
 
           <!-- IndexedDB Cache Maintenance -->
