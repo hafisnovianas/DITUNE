@@ -177,11 +177,16 @@ export class AudioEngine {
           audioBlob = await resp.blob();
         } else {
           // Google Drive download
-          const { blob, mimeType } = await downloadDriveAudioFile(track.id, (percent) => {
-            if (requestId === this.playRequestId) {
-              this.emit('loading', { isLoading: true, percent });
-            }
-          });
+          this.emit('loading', { isLoading: true, percent: 0, track: this.currentTrack });
+          const { blob, mimeType } = await downloadDriveAudioFile(
+            track.id,
+            (percent) => {
+              if (requestId === this.playRequestId) {
+                this.emit('loading', { isLoading: true, percent, track: this.currentTrack });
+              }
+            },
+            track.size
+          );
 
           if (requestId !== this.playRequestId) return;
           audioBlob = blob;
@@ -221,7 +226,7 @@ export class AudioEngine {
       this.audio.volume = this.volume;
 
       this.isLoading = false;
-      this.emit('loading', { isLoading: false, percent: 100 });
+      this.emit('loading', { isLoading: false, percent: 100, track: this.currentTrack });
 
       // Update UI with any enriched metadata & cover
       this.emit('trackChange', { track: this.currentTrack, coverUrl: this.currentCoverUrl });
@@ -232,7 +237,7 @@ export class AudioEngine {
       if (requestId !== this.playRequestId) return;
       console.error('[AudioEngine] loadAndPlay error:', err);
       this.isLoading = false;
-      this.emit('loading', { isLoading: false, percent: 0 });
+      this.emit('loading', { isLoading: false, percent: 0, track: this.currentTrack });
       this.emit('error', err.message || 'Gagal memuat lagu.');
     }
   }

@@ -396,7 +396,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         </div>
 
         <!-- Cache Status & Duration -->
-        <div class="flex items-center gap-3 flex-shrink-0">
+        <div class="track-cache-status flex items-center gap-3 flex-shrink-0">
           ${cacheIcon}
           <span class="text-xs text-zinc-400 font-mono w-10 text-right">${formatDuration(track.duration)}</span>
         </div>
@@ -547,6 +547,57 @@ export function showToast(message, type = 'info', duration = 3500) {
     toast.classList.add('opacity-0', 'translate-x-4');
     setTimeout(() => toast.remove(), 300);
   }, duration);
+}
+
+/**
+ * Real-time Progress Toast (for active audio download)
+ */
+export function showProgressToast(id, message, percent = 0) {
+  const container = document.getElementById('toast-container');
+  if (!container) return null;
+
+  let toast = document.getElementById(`toast-${id}`);
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = `toast-${id}`;
+    toast.className = 'flex flex-col gap-2 px-4 py-3 rounded-xl border backdrop-blur-md shadow-xl text-xs font-medium transition-all duration-300 bg-zinc-900 border-emerald-500/40 text-zinc-200 pointer-events-auto min-w-[280px]';
+    container.appendChild(toast);
+  }
+
+  const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+
+  toast.innerHTML = `
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2 truncate">
+        <svg class="w-3.5 h-3.5 animate-spin text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        <span class="truncate font-semibold text-zinc-100">${escapeHtml(message)}</span>
+      </div>
+      <span class="font-mono text-emerald-400 font-bold flex-shrink-0">${safePercent}%</span>
+    </div>
+    <div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+      <div class="bg-emerald-500 h-full rounded-full transition-all duration-150" style="width: ${safePercent}%"></div>
+    </div>
+  `;
+
+  if (safePercent >= 100) {
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'translate-x-4');
+      setTimeout(() => toast.remove(), 300);
+    }, 1200);
+  }
+
+  return toast;
+}
+
+export function removeProgressToast(id) {
+  const toast = document.getElementById(`toast-${id}`);
+  if (toast) {
+    toast.classList.add('opacity-0', 'translate-x-4');
+    setTimeout(() => toast.remove(), 300);
+  }
 }
 
 function escapeHtml(str = '') {

@@ -22,6 +22,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Added
+- Indikator progress bar dan persentase unduhan real-time pada baris daftar lagu, floating toast, tombol unduh batch, dan player bar saat proses pemuatan audio Google Drive.
 - Menyimpan token akses Google OAuth sementara di `sessionStorage` (masa berlaku 1 jam) agar sesi login tidak ter-reset saat pengguna me-reload halaman browser.
 - Inisialisasi awal proyek pemutar musik DITUNE berbasis web (*client-side*) menggunakan Vite, Vanilla JS, Tailwind CSS, dan Lucide Icons.
 - Integrasi Google Identity Services (GIS) dan Google Picker API dengan *scope* minimal `drive.file` untuk memilih folder musik dari Google Drive pengguna secara aman dan menjaga privasi.

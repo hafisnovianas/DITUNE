@@ -59,6 +59,8 @@ import {
   renderArtistsView,
   renderAlbumsView,
   showToast,
+  showProgressToast,
+  removeProgressToast,
   formatBytes,
 } from './components.js';
 
@@ -308,10 +310,40 @@ export class UIController {
       }
     });
 
-    this.engine.on('loading', ({ isLoading, percent }) => {
-      if (isLoading && percent > 0 && percent < 100) {
-        const timeCurEl = document.getElementById('time-current');
+    this.engine.on('loading', ({ isLoading, percent, track }) => {
+      const btnPlayPause = document.getElementById('btn-play-pause');
+      const timeCurEl = document.getElementById('time-current');
+      const barFill = document.getElementById('progress-bar-fill');
+
+      if (isLoading) {
         if (timeCurEl) timeCurEl.textContent = `${percent}%`;
+        if (barFill) {
+          barFill.style.width = `${percent}%`;
+          barFill.classList.add('animate-pulse');
+        }
+        if (btnPlayPause) {
+          btnPlayPause.innerHTML = `
+            <svg class="w-5 h-5 animate-spin text-zinc-950" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          `;
+        }
+        if (track) {
+          this.updateTrackDownloadUI(track.id, percent);
+          showProgressToast('stream-cache', `Memuat: ${track.title || track.name}`, percent);
+        }
+      } else {
+        if (barFill) {
+          barFill.classList.remove('animate-pulse');
+        }
+        removeProgressToast('stream-cache');
+        if (btnPlayPause) {
+          btnPlayPause.innerHTML = this.engine.isPlaying
+            ? '<i id="icon-play-state" data-lucide="pause" class="w-5 h-5 fill-current"></i>'
+            : '<i id="icon-play-state" data-lucide="play" class="w-5 h-5 fill-current ml-0.5"></i>';
+          refreshLucideIcons();
+        }
       }
     });
 
@@ -788,6 +820,27 @@ export class UIController {
     }
   }
 
+  updateTrackDownloadUI(trackId, percent) {
+    const row = document.querySelector(`.track-row[data-id="${trackId}"]`);
+    if (!row) return;
+
+    const cacheStatus = row.querySelector('.track-cache-status');
+    if (cacheStatus) {
+      const durationSpan = cacheStatus.querySelector('span.font-mono.w-10');
+      const durationText = durationSpan ? durationSpan.textContent : '';
+      cacheStatus.innerHTML = `
+        <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30">
+          <svg class="w-3.5 h-3.5 animate-spin text-emerald-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span>${percent}%</span>
+        </span>
+        <span class="text-xs text-zinc-400 font-mono w-10 text-right">${durationText}</span>
+      `;
+    }
+  }
+
   async downloadSingleTrack(trackId) {
     const track = this.allTracks.find((t) => t.id === trackId);
     if (!track) return;
@@ -803,11 +856,19 @@ export class UIController {
     }
 
     this.downloadingTrackIds.add(trackId);
+    this.updateTrackDownloadUI(trackId, 0);
+    showProgressToast(trackId, `Mengunduh: ${track.title || track.name}`, 0);
 
     try {
-      showToast(`Mengunduh "${track.title}" ke cache IndexedDB...`, 'info');
+      const result = await downloadDriveAudioFile(
+        track.id,
+        (percent) => {
+          this.updateTrackDownloadUI(trackId, percent);
+          showProgressToast(trackId, `Mengunduh: ${track.title || track.name}`, percent);
+        },
+        track.size
+      );
 
-      const result = await downloadDriveAudioFile(track.id);
       const blob = result.blob;
       const mimeType = result.mimeType;
 
@@ -841,6 +902,8 @@ export class UIController {
       }
     } catch (err) {
       console.error('Download single track error:', err);
+      removeProgressToast(trackId);
+      this.renderMainContent();
       showToast(`Gagal mengunduh: ${err.message}`, 'error');
     } finally {
       this.downloadingTrackIds.delete(trackId);
@@ -875,17 +938,39 @@ export class UIController {
       for (const track of uncached) {
         if (btnDownloadAll) {
           btnDownloadAll.innerHTML = `
-            <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i>
-            <span>Mengunduh (${completed + 1}/${uncached.length})...</span>
+            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            <span>(${completed + 1}/${uncached.length}) 0%</span>
           `;
         }
+
+        this.updateTrackDownloadUI(track.id, 0);
+        showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, 0);
 
         try {
           if (!navigator.onLine) {
             showToast('Koneksi internet terputus saat mengunduh.', 'warning');
             break;
           }
-          const result = await downloadDriveAudioFile(track.id);
+          const result = await downloadDriveAudioFile(
+            track.id,
+            (percent) => {
+              if (btnDownloadAll) {
+                btnDownloadAll.innerHTML = `
+                  <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  <span>(${completed + 1}/${uncached.length}) ${percent}%</span>
+                `;
+              }
+              this.updateTrackDownloadUI(track.id, percent);
+              showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, percent);
+            },
+            track.size
+          );
           const blob = result.blob;
           const mimeType = result.mimeType;
 
@@ -921,6 +1006,7 @@ export class UIController {
       showToast(`Selesai! ${completed} dari ${uncached.length} lagu berhasil disimpan offline.`, 'success');
     } finally {
       this.isBatchDownloading = false;
+      removeProgressToast('batch-download');
       if (btnDownloadAll) {
         btnDownloadAll.disabled = false;
         btnDownloadAll.classList.remove('opacity-70', 'cursor-not-allowed');

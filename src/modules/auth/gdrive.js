@@ -337,9 +337,10 @@ function isAudioExtension(name = '') {
  * Endpoint: https://www.googleapis.com/drive/v3/files/{id}?alt=media
  * @param {string} fileId
  * @param {function(number): void} [onProgress]
+ * @param {number} [expectedSize]
  * @returns {Promise<{blob: Blob, mimeType: string}>}
  */
-export async function downloadDriveAudioFile(fileId, onProgress = null) {
+export async function downloadDriveAudioFile(fileId, onProgress = null, expectedSize = 0) {
   let token = await getAccessToken(false).catch(() => getAccessToken(true));
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 
@@ -364,13 +365,18 @@ export async function downloadDriveAudioFile(fileId, onProgress = null) {
     throw new Error(`Gagal mengunduh audio dari Google Drive (Status: ${resp.status})`);
   }
 
-  const contentLength = Number(resp.headers.get('content-length')) || 0;
+  const headerLength = Number(resp.headers.get('content-length')) || 0;
+  const contentLength = headerLength > 0 ? headerLength : Number(expectedSize || 0);
   const contentType = resp.headers.get('content-type') || 'audio/mpeg';
 
-  if (!resp.body || !window.ReadableStream || contentLength === 0 || !onProgress) {
+  if (!resp.body || !window.ReadableStream || !onProgress) {
     const blob = await resp.blob();
+    if (onProgress) onProgress(100);
     return { blob, mimeType: contentType };
   }
+
+  // Trigger initial progress indicator
+  onProgress(0);
 
   // Stream with progress calculation
   const reader = resp.body.getReader();
@@ -382,11 +388,15 @@ export async function downloadDriveAudioFile(fileId, onProgress = null) {
     if (done) break;
     chunks.push(value);
     receivedLength += value.length;
-    if (onProgress && contentLength > 0) {
-      const percent = Math.min(100, Math.round((receivedLength / contentLength) * 100));
+    if (contentLength > 0) {
+      const percent = Math.min(99, Math.round((receivedLength / contentLength) * 100));
       onProgress(percent);
+    } else {
+      onProgress(50);
     }
   }
+
+  onProgress(100);
 
   const blob = new Blob(chunks, { type: contentType });
   return { blob, mimeType: contentType };
