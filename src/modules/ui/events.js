@@ -141,7 +141,6 @@ export class UIController {
 
     // Initial render
     this.renderMainContent();
-    this.updatePickerButtonsVisibility();
     refreshLucideIcons();
   }
 
@@ -283,30 +282,7 @@ export class UIController {
     }
 
     container.scrollTop = prevScrollTop;
-    this.updatePickerButtonsVisibility();
     refreshLucideIcons();
-  }
-
-  updatePickerButtonsVisibility() {
-    const hasTracks = Array.isArray(this.allTracks) && this.allTracks.length > 0;
-    const sidebarPicker = document.getElementById('sidebar-picker-container');
-    const mobilePicker = document.getElementById('btn-open-picker-mobile');
-
-    if (sidebarPicker) {
-      if (hasTracks) {
-        sidebarPicker.classList.add('hidden');
-      } else {
-        sidebarPicker.classList.remove('hidden');
-      }
-    }
-
-    if (mobilePicker) {
-      if (hasTracks) {
-        mobilePicker.classList.add('hidden');
-      } else {
-        mobilePicker.classList.remove('hidden');
-      }
-    }
   }
 
   bindEngineEvents() {
@@ -695,10 +671,7 @@ export class UIController {
       }
     });
 
-    // Drive Picker Buttons
-    const openPickerHandler = () => this.triggerDrivePicker();
-    document.getElementById('btn-open-picker')?.addEventListener('click', openPickerHandler);
-    document.getElementById('btn-open-picker-mobile')?.addEventListener('click', openPickerHandler);
+    // Drive Picker Button in Settings
     document.getElementById('btn-change-folder')?.addEventListener('click', () => {
       this.closeSettingsModal();
       this.triggerDrivePicker();

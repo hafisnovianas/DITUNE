@@ -34,14 +34,6 @@ export function renderAppShell() {
             <p class="text-xs text-zinc-400 font-medium mt-0.5">Google Drive Player</p>
           </div>
 
-        <!-- Drive Action Buttons -->
-        <div id="sidebar-picker-container" class="pt-2">
-          <button id="btn-open-picker" class="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
-            <i data-lucide="folder-plus" class="w-5 h-5"></i>
-            <span>Pilih Folder Drive</span>
-          </button>
-        </div>
-
         <!-- Navigation Tabs -->
         <nav class="flex flex-col gap-1 mt-4">
           <p class="px-3 text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1">Perpustakaan</p>
@@ -102,11 +94,6 @@ export function renderAppShell() {
 
           <!-- Header Actions -->
           <div class="flex items-center gap-2">
-            <!-- Mobile Drive Picker Button -->
-            <button id="btn-open-picker-mobile" class="md:hidden flex items-center justify-center p-2 rounded-lg bg-emerald-500 text-zinc-950 font-bold">
-              <i data-lucide="folder-plus" class="w-4 h-4"></i>
-            </button>
-
             <!-- Network Status Indicator -->
             <div id="network-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
