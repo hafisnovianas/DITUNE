@@ -7,7 +7,6 @@ import {
   createIcons,
   Disc,
   FolderPlus,
-  Sparkles,
   Music,
   Users,
   Disc3,
@@ -54,7 +53,6 @@ import {
   downloadDriveAudioFile,
   clearSessionToken,
 } from '../auth/gdrive.js';
-import { createDemoTracks } from '../player/demoTracks.js';
 import { formatDuration, parseAudioMetadata } from '../parser/metadata.js';
 import {
   renderTrackList,
@@ -69,7 +67,6 @@ export function refreshLucideIcons() {
     icons: {
       Disc,
       FolderPlus,
-      Sparkles,
       Music,
       Users,
       Disc3,
@@ -419,12 +416,6 @@ export class UIController {
           this.triggerDrivePicker();
           return;
         }
-
-        // Empty demo button
-        if (e.target.closest('#btn-empty-demo')) {
-          this.loadDemoTracks();
-          return;
-        }
       });
     }
 
@@ -609,11 +600,6 @@ export class UIController {
     const openPickerHandler = () => this.triggerDrivePicker();
     document.getElementById('btn-open-picker')?.addEventListener('click', openPickerHandler);
     document.getElementById('btn-open-picker-mobile')?.addEventListener('click', openPickerHandler);
-
-    // Demo Tracks Button
-    document.getElementById('btn-load-demo')?.addEventListener('click', () => {
-      this.loadDemoTracks();
-    });
 
     // Download All Button
     document.getElementById('btn-download-all')?.addEventListener('click', () => {
@@ -802,47 +788,6 @@ export class UIController {
     }
   }
 
-  async loadDemoTracks() {
-    try {
-      showToast('Membuat lagu demo berformat WAV dengan synthesizer audio...', 'info');
-      const demoTracks = await createDemoTracks();
-
-      for (const track of demoTracks) {
-        // Save audio blob and cover blob directly into IndexedDB
-        await saveAudioBlob(track.id, track.audioBlob, track.mimeType);
-        await saveCover(track.id, track.coverBlob, 'image/svg+xml');
-
-        const trackRecord = {
-          id: track.id,
-          name: track.name,
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          duration: track.duration,
-          size: track.size,
-          mimeType: track.mimeType,
-          isCached: true,
-          cachedAt: Date.now(),
-          hasCover: true,
-        };
-        await saveTrack(trackRecord);
-      }
-
-      await this.reloadTracks();
-      await this.updateStorageInfo();
-      this.renderMainContent();
-      showToast('3 Lagu Demo berhasil dimuat dan disimpan di IndexedDB!', 'success');
-
-      // Auto play first demo track
-      if (this.allTracks.length > 0) {
-        this.engine.playTrack(this.allTracks[0], this.allTracks);
-      }
-    } catch (err) {
-      console.error('Demo load error:', err);
-      showToast(`Gagal memuat demo: ${err.message}`, 'error');
-    }
-  }
-
   async downloadSingleTrack(trackId) {
     const track = this.allTracks.find((t) => t.id === trackId);
     if (!track) return;
@@ -862,40 +807,24 @@ export class UIController {
     try {
       showToast(`Mengunduh "${track.title}" ke cache IndexedDB...`, 'info');
 
-      let blob = null;
-      let mimeType = track.mimeType || 'audio/mpeg';
+      const result = await downloadDriveAudioFile(track.id);
+      const blob = result.blob;
+      const mimeType = result.mimeType;
 
-      if (track.id.startsWith('demo-track-')) {
-        const demoTracks = await createDemoTracks();
-        const match = demoTracks.find((d) => d.id === track.id);
-        if (match) {
-          blob = match.audioBlob;
-          mimeType = match.mimeType;
-          if (match.coverBlob) {
-            await saveCover(track.id, match.coverBlob, 'image/svg+xml');
-            track.hasCover = true;
-          }
+      // Parse metadata & cover if available
+      try {
+        const meta = await parseAudioMetadata(blob, track.name);
+        track.title = meta.title;
+        track.artist = meta.artist;
+        track.album = meta.album;
+        if (meta.duration > 0) track.duration = meta.duration;
+
+        if (meta.coverBlob) {
+          await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
+          track.hasCover = true;
         }
-      } else {
-        const result = await downloadDriveAudioFile(track.id);
-        blob = result.blob;
-        mimeType = result.mimeType;
-
-        // Parse metadata & cover if available
-        try {
-          const meta = await parseAudioMetadata(blob, track.name);
-          track.title = meta.title;
-          track.artist = meta.artist;
-          track.album = meta.album;
-          if (meta.duration > 0) track.duration = meta.duration;
-
-          if (meta.coverBlob) {
-            await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
-            track.hasCover = true;
-          }
-        } catch (metaErr) {
-          console.warn('Metadata parsing failed:', metaErr);
-        }
+      } catch (metaErr) {
+        console.warn('Metadata parsing failed:', metaErr);
       }
 
       if (blob) {
@@ -952,42 +881,26 @@ export class UIController {
         }
 
         try {
-          let blob = null;
-          let mimeType = track.mimeType || 'audio/mpeg';
-
-          if (track.id.startsWith('demo-track-')) {
-            const demoTracks = await createDemoTracks();
-            const match = demoTracks.find((d) => d.id === track.id);
-            if (match) {
-              blob = match.audioBlob;
-              mimeType = match.mimeType;
-              if (match.coverBlob) {
-                await saveCover(track.id, match.coverBlob, 'image/svg+xml');
-                track.hasCover = true;
-              }
-            }
-          } else {
-            if (!navigator.onLine) {
-              showToast('Koneksi internet terputus saat mengunduh.', 'warning');
-              break;
-            }
-            const result = await downloadDriveAudioFile(track.id);
-            blob = result.blob;
-            mimeType = result.mimeType;
-
-            try {
-              const meta = await parseAudioMetadata(blob, track.name);
-              track.title = meta.title;
-              track.artist = meta.artist;
-              track.album = meta.album;
-              if (meta.duration > 0) track.duration = meta.duration;
-
-              if (meta.coverBlob) {
-                await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
-                track.hasCover = true;
-              }
-            } catch (_) {}
+          if (!navigator.onLine) {
+            showToast('Koneksi internet terputus saat mengunduh.', 'warning');
+            break;
           }
+          const result = await downloadDriveAudioFile(track.id);
+          const blob = result.blob;
+          const mimeType = result.mimeType;
+
+          try {
+            const meta = await parseAudioMetadata(blob, track.name);
+            track.title = meta.title;
+            track.artist = meta.artist;
+            track.album = meta.album;
+            if (meta.duration > 0) track.duration = meta.duration;
+
+            if (meta.coverBlob) {
+              await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
+              track.hasCover = true;
+            }
+          } catch (_) {}
 
           if (blob) {
             await saveAudioBlob(track.id, blob, mimeType);

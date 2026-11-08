@@ -40,15 +40,10 @@ export function renderAppShell() {
         </div>
 
         <!-- Drive Action Buttons -->
-        <div class="flex flex-col gap-2 pt-2">
+        <div class="pt-2">
           <button id="btn-open-picker" class="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]">
             <i data-lucide="folder-plus" class="w-5 h-5"></i>
             <span>Pilih Folder Drive</span>
-          </button>
-          
-          <button id="btn-load-demo" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold border border-zinc-700/50 transition">
-            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400"></i>
-            <span>Muat Lagu Contoh (Demo)</span>
           </button>
         </div>
 
@@ -344,15 +339,12 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         </div>
         <h3 class="text-lg font-bold text-zinc-200">Belum ada lagu di library</h3>
         <p class="text-sm max-w-md text-zinc-400 mt-1">
-          Hubungkan folder musik dari Google Drive Anda atau klik tombol "Muat Lagu Contoh" untuk mulai mendengarkan.
+          Hubungkan folder musik dari Google Drive Anda untuk mulai mendengarkan.
         </p>
         <div class="flex items-center gap-3 mt-6">
           <button id="btn-empty-picker" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition">
             <i data-lucide="folder-plus" class="w-4 h-4"></i>
             <span>Pilih Folder Drive</span>
-          </button>
-          <button id="btn-empty-demo" class="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-sm transition border border-zinc-700">
-            Lagu Demo
           </button>
         </div>
       </div>

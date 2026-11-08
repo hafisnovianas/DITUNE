@@ -7,7 +7,6 @@
 import { getAudioBlob, saveAudioBlob, getCover, saveCover, saveTrack } from '../storage/db.js';
 import { downloadDriveAudioFile } from '../auth/gdrive.js';
 import { parseAudioMetadata } from '../parser/metadata.js';
-import { createDemoTracks } from './demoTracks.js';
 import {
   setupMediaSession,
   updateMediaSessionMetadata,
@@ -172,23 +171,7 @@ export class AudioEngine {
       if (requestId !== this.playRequestId) return;
 
       if (!audioBlob) {
-        // Fallback for demo tracks if audio cache was cleared
-        if (track.id && track.id.startsWith('demo-track-')) {
-          const demoTracks = await createDemoTracks();
-          const match = demoTracks.find((d) => d.id === track.id);
-          if (match) {
-            audioBlob = match.audioBlob;
-            await saveAudioBlob(track.id, audioBlob, match.mimeType);
-            if (match.coverBlob) {
-              await saveCover(track.id, match.coverBlob, 'image/svg+xml');
-              if (this.currentCoverUrl) URL.revokeObjectURL(this.currentCoverUrl);
-              this.currentCoverUrl = URL.createObjectURL(match.coverBlob);
-              track.hasCover = true;
-            }
-            track.isCached = true;
-            await saveTrack(track);
-          }
-        } else if (track.url) {
+        if (track.url) {
           // Direct URL (e.g. static link)
           const resp = await fetch(track.url);
           audioBlob = await resp.blob();

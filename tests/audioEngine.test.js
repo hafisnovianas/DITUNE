@@ -166,8 +166,8 @@ describe('AudioEngine Unit Tests', () => {
     const engine = new AudioEngine();
     assert.equal(engine.playRequestId, 0);
 
-    const track1 = { id: 'demo-track-1', title: 'Demo 1', name: 'demo1.wav' };
-    const track2 = { id: 'demo-track-2', title: 'Demo 2', name: 'demo2.wav' };
+    const track1 = { id: 'track-1', title: 'Track 1', name: 'track1.wav' };
+    const track2 = { id: 'track-2', title: 'Track 2', name: 'track2.wav' };
 
     engine.loadAndPlay(track1);
     const req1 = engine.playRequestId;

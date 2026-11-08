@@ -1,0 +1,3 @@
+- [x] ~~lagu contoh hapus aja fiturnya~~ (Selesai)
+- [ ] ketika sedang download lagu tidak terlihat progressnya, dikira macet
+- [ ] ketika pilih folder lagi bahkan folder yang sama, semua lagu yang sebelumnya hilang dan unduh baru, solusinya?

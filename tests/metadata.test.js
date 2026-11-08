@@ -2,7 +2,6 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { formatDuration, parseAudioMetadata } from '../src/modules/parser/metadata.js';
-import { generateSyntheticAudioBlob } from '../src/modules/player/demoTracks.js';
 
 describe('Metadata Parser & Formatters', () => {
   test('formatDuration should format seconds properly', () => {
@@ -22,8 +21,8 @@ describe('Metadata Parser & Formatters', () => {
   });
 
   test('parseAudioMetadata should fallback gracefully on unformatted or synthetic audio', async () => {
-    const syntheticWav = generateSyntheticAudioBlob(2, [440]);
-    const parsed = await parseAudioMetadata(syntheticWav, '01 - My Cool Song.wav');
+    const dummyWav = new Blob(['RIFFdummyWAVEfmt '], { type: 'audio/wav' });
+    const parsed = await parseAudioMetadata(dummyWav, '01 - My Cool Song.wav');
 
     assert.equal(parsed.title, 'My Cool Song');
     assert.equal(parsed.artist, 'Unknown Artist');
