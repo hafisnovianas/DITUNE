@@ -139,6 +139,7 @@ export class UIController {
     this.deferredInstallPrompt = null;
     this.activeMenuTrackId = null;
     this.confirmActionCallback = null;
+    this.hasRestoredIgnoredTracks = false;
 
     this.bindEngineEvents();
     this.bindDOMEvents();
@@ -789,10 +790,6 @@ export class UIController {
       this.openIgnoredTracksModal();
     });
 
-    document.getElementById('btn-close-ignored-modal')?.addEventListener('click', () => {
-      this.closeIgnoredTracksModal();
-    });
-
     document.getElementById('btn-done-ignored-modal')?.addEventListener('click', () => {
       this.closeIgnoredTracksModal();
     });
@@ -804,10 +801,11 @@ export class UIController {
         return;
       }
       await clearIgnoredTracks();
+      this.hasRestoredIgnoredTracks = true;
       await this.renderIgnoredTracksModalList();
       const countEl = document.getElementById('modal-ignored-count');
       if (countEl) countEl.textContent = '0 lagu';
-      showToast('Semua lagu telah dipulihkan. Tekan "Sinkronkan Lagu" untuk memuatnya kembali.', 'success');
+      showToast('Semua lagu telah dipulihkan dari daftar abaikan.', 'success');
     });
 
     const ignoredListEl = document.getElementById('ignored-tracks-list');
@@ -817,11 +815,12 @@ export class UIController {
         if (unignoreBtn) {
           const trackId = unignoreBtn.getAttribute('data-id');
           await unignoreTrack(trackId);
+          this.hasRestoredIgnoredTracks = true;
           await this.renderIgnoredTracksModalList();
           const remaining = await getIgnoredTracks();
           const countEl = document.getElementById('modal-ignored-count');
           if (countEl) countEl.textContent = `${remaining.length} lagu`;
-          showToast('Lagu dipulihkan dari daftar abaikan. Tekan "Sinkronkan Lagu" untuk memasukkannya kembali.', 'info');
+          showToast('Lagu dipulihkan dari daftar abaikan.', 'info');
         }
       });
     }
@@ -1165,6 +1164,7 @@ export class UIController {
   }
 
   async openIgnoredTracksModal() {
+    this.hasRestoredIgnoredTracks = false;
     const modal = document.getElementById('ignored-tracks-modal');
     if (!modal) return;
     await this.renderIgnoredTracksModalList();
@@ -1182,6 +1182,15 @@ export class UIController {
     const ignored = await getIgnoredTracks();
     const countEl = document.getElementById('modal-ignored-count');
     if (countEl) countEl.textContent = `${ignored.length} lagu`;
+
+    if (this.hasRestoredIgnoredTracks) {
+      this.hasRestoredIgnoredTracks = false;
+      if (navigator.onLine) {
+        await this.syncConnectedFolder();
+      } else {
+        showToast('Lagu telah dipulihkan. Hubungkan ke internet untuk menyinkronkan kembali.', 'info');
+      }
+    }
   }
 
   async renderIgnoredTracksModalList() {

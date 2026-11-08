@@ -317,14 +317,9 @@ export function renderAppShell() {
     <div id="ignored-tracks-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
       <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <!-- Header -->
-        <div class="p-5 border-b border-zinc-800/80 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h3 class="text-base font-bold text-white">Lagu yang Disembunyikan</h3>
-            <p class="text-xs text-zinc-400 mt-0.5">Lagu di bawah ini tidak akan ditarik saat sinkronisasi Google Drive.</p>
-          </div>
-          <button id="btn-close-ignored-modal" class="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer" title="Tutup">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>
+        <div class="p-5 border-b border-zinc-800/80 flex-shrink-0">
+          <h3 class="text-base font-bold text-white">Lagu yang Disembunyikan</h3>
+          <p class="text-xs text-zinc-400 mt-0.5">Lagu di bawah ini tidak akan ditarik saat sinkronisasi Google Drive.</p>
         </div>
 
         <!-- Body / List -->

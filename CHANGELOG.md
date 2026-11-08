@@ -34,6 +34,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Menyempurnakan antarmuka modal *Lagu yang Disembunyikan* dengan menghapus tombol silang `✕` agar murni berstatus panel aksi langsung (*Immediate Management Panel*), serta menjalankan sinkronisasi folder Google Drive otomatis di latar belakang saat tombol **"Selesai"** diklik jika terdapat lagu yang dipulihkan.
 - Memperlebar kolom ke-4 pada tabel daftar lagu menjadi `9.5rem` (`grid-cols-[2rem_1fr_9.5rem]` / `md:grid-cols-[2rem_1fr_26%_9.5rem]`) agar memuat badge offline, durasi, dan tombol menu lagu dengan rapi dan presisi.
 - Merombak antarmuka modal Pengaturan dari gaya kartu bertumpuk menjadi tata letak baris bersih (*native row-based preferences*) untuk menghilangkan redundansi visual dan meningkatkan keterbacaan.
 - Mengalihkan penyimpanan token akses Google OAuth dari `sessionStorage` ke `localStorage` (dengan batas masa berlaku 1 jam) agar pengguna tidak perlu login ulang setiap kali menutup dan membuka kembali browser atau aplikasi PWA.
