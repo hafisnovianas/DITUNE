@@ -8,6 +8,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Animasi batang equalizer audio dinamis (GPU-composited via CSS `transform: scaleY`) pada baris lagu yang sedang aktif diputar, lengkap dengan transisi ikon pause saat di-hover.
 - Dukungan pemindaian dan pemutaran trek audio dari file media berformat `.mp4`, `.m4v`, dan `.webm` dari Google Drive.
 - Dukungan tombol instalasi aplikasi Progressive Web App (PWA) di bilah navigasi header saat aplikasi belum terpasang.
 - Fitur sinkronisasi folder 1-klik (`↻ Sinkronkan Lagu`) di header daftar lagu untuk memindai lagu baru di Google Drive tanpa memunculkan dialog Picker.

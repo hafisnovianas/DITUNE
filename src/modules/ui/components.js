@@ -348,11 +348,13 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         <div class="text-center flex-shrink-0">
           ${
             isActive && isPlaying
-              ? `<div class="flex items-end justify-center gap-0.5 h-4">
-                   <span class="w-1 bg-emerald-400 animate-pulse h-full"></span>
-                   <span class="w-1 bg-emerald-400 animate-pulse h-2"></span>
-                   <span class="w-1 bg-emerald-400 animate-pulse h-3"></span>
-                 </div>`
+              ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover:hidden" title="Sedang memutar">
+                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-1"></span>
+                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-2"></span>
+                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-3"></span>
+                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-4"></span>
+                 </div>
+                 <i data-lucide="pause" class="w-4 h-4 text-emerald-400 hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
               : `<span class="text-xs text-zinc-400 group-hover:hidden font-mono">${idx + 1}</span>
                  <i data-lucide="play" class="w-4 h-4 text-white hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
           }
