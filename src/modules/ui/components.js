@@ -21,7 +21,7 @@ export function formatBytes(bytes) {
  */
 export function renderAppShell() {
   return `
-    <div class="flex flex-col h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans select-none">
+    <div class="flex flex-col h-full h-dvh w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans select-none">
       
       <!-- Top Workspace (Sidebar + Main Content) -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
@@ -129,7 +129,7 @@ export function renderAppShell() {
     </div>
 
     <!-- Persistent Bottom Player Bar (In-Flow Flex Row) -->
-    <div id="player-bar" class="h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 md:px-6 flex items-center justify-between flex-shrink-0 z-40 transition-all">
+    <div id="player-bar" class="h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 md:px-6 flex items-center justify-between flex-shrink-0 z-40 pb-[env(safe-area-inset-bottom,0px)] md:pb-0 transition-all">
       
       <!-- Track Info (Left - Desktop Only) -->
       <div class="hidden md:flex items-center gap-3 w-1/4 min-w-[240px]">
