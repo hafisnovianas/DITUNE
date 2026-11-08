@@ -68,28 +68,8 @@ export function renderAppShell() {
           </button>
         </nav>
 
-        <!-- Offline Cache Status Card -->
-        <div class="mt-auto bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 flex flex-col gap-2">
-          <div class="flex items-center justify-between text-xs font-semibold">
-            <span class="text-zinc-400 flex items-center gap-1.5">
-              <i data-lucide="database" class="w-3.5 h-3.5 text-emerald-400"></i>
-              Cache Offline
-            </span>
-            <span id="storage-usage-text" class="text-zinc-300 font-mono text-[11px]">0 MB</span>
-          </div>
-
-          <div class="w-full bg-zinc-800/80 rounded-full h-1.5 overflow-hidden">
-            <div id="storage-progress-bar" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
-          </div>
-
-          <button id="btn-download-all" class="mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-emerald-400 hover:text-emerald-300 text-xs font-semibold transition border border-emerald-500/20">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i>
-            <span>Unduh Semua Offline</span>
-          </button>
-        </div>
-
         <!-- Footer Settings -->
-        <button id="btn-open-settings" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800/40 transition">
+        <button id="btn-open-settings" class="mt-auto flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition">
           <i data-lucide="settings" class="w-4 h-4"></i>
           <span>Pengaturan & Kredensial</span>
         </button>
@@ -310,6 +290,12 @@ export function renderAppShell() {
                 <p id="modal-cache-size" class="text-base font-bold text-emerald-400 font-mono mt-0.5">0 MB</p>
               </div>
             </div>
+
+            <!-- Action Download All -->
+            <button id="btn-download-all" class="w-full py-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>Unduh Semua Lagu ke Cache Offline</span>
+            </button>
 
             <div class="flex flex-col sm:flex-row gap-2 pt-1">
               <button id="btn-clear-cache" class="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-xs font-semibold border border-amber-500/30 transition flex items-center justify-center gap-2">
