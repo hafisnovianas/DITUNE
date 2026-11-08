@@ -217,96 +217,79 @@ export function renderAppShell() {
       <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         <!-- Modal Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <div class="flex items-center gap-2.5">
-            <i data-lucide="settings" class="w-5 h-5 text-emerald-400"></i>
-            <h3 class="text-lg font-bold text-white">Pengaturan DITUNE</h3>
-          </div>
-          <button id="btn-close-settings" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800">
-            <i data-lucide="x" class="w-5 h-5"></i>
+          <h3 class="text-base font-semibold text-white">Pengaturan</h3>
+          <button id="btn-close-settings" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
           </button>
         </div>
 
         <!-- Modal Body (Scrollable) -->
-        <div class="p-6 overflow-y-auto space-y-6 text-sm text-zinc-300">
+        <div class="p-6 overflow-y-auto divide-y divide-zinc-800/80 text-sm text-zinc-300 space-y-5">
           
-          <!-- Connection Status Card -->
-          <div class="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+          <!-- Section 1: Google Drive -->
+          <div class="space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-zinc-400">Integrasi Google Drive</span>
+              <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Google Drive</span>
               <div id="status-credential-badge">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Terhubung & Aktif
+                <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Terhubung
                 </span>
               </div>
             </div>
 
-            <!-- Connected Folder Info -->
-            <div id="connected-folder-info" class="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800/80 flex items-center justify-between text-xs">
-              <div class="flex items-center gap-2 min-w-0 pr-2">
-                <i data-lucide="folder" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
-                <div class="min-w-0">
-                  <p class="text-[10px] text-zinc-500 font-medium">Folder Terhubung</p>
-                  <p id="connected-folder-name" class="font-semibold text-zinc-200 truncate">Belum ada folder terhubung</p>
-                </div>
+            <div class="flex items-center justify-between gap-4 py-1">
+              <div class="min-w-0 flex-1">
+                <p id="connected-folder-name" class="font-medium text-white truncate text-sm">Belum ada folder terhubung</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Folder sumber lagu yang disinkronkan</p>
               </div>
-              <span id="connected-folder-badge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-zinc-400 flex-shrink-0">
-                Tersimpan
-              </span>
+              <button id="btn-change-folder" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition flex items-center gap-1.5">
+                <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-zinc-400"></i>
+                <span>Ganti Folder</span>
+              </button>
             </div>
+            <span id="connected-folder-badge" class="hidden"></span>
+          </div>
 
-            <p class="text-xs text-zinc-400 leading-relaxed">
-              DITUNE terintegrasi resmi dengan Google Identity Services & Google Picker menggunakan scope aman <code class="text-emerald-400 bg-emerald-950/40 px-1 py-0.5 rounded">drive.readonly</code>. Lagu diputar langsung dari folder Google Drive Anda secara privat tanpa perantara.
-            </p>
-            <div class="pt-1">
-              <button id="btn-change-folder" class="w-full py-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
-                <i data-lucide="folder-plus" class="w-4 h-4"></i>
-                <span>Ganti Folder Musik Google Drive</span>
+          <!-- Section 2: Penyimpanan Offline -->
+          <div class="pt-5 space-y-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Penyimpanan Offline</span>
+
+            <div class="flex items-center justify-between gap-4 py-1">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-white text-sm">Cache Audio</p>
+                <p class="text-xs text-zinc-400 mt-0.5">
+                  <span id="modal-cache-count">0 lagu</span> • <span id="modal-cache-size">0 MB</span> tersimpan di browser
+                </p>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button id="btn-download-all" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-medium border border-emerald-500/30 transition flex items-center gap-1.5">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                  <span>Unduh Semua</span>
+                </button>
+                <button id="btn-clear-cache" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium border border-zinc-700/60 transition">
+                  Bersihkan
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Zona Reset -->
+          <div class="pt-5 space-y-3">
+            <div class="flex items-center justify-between gap-4 py-1">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium text-rose-300 text-sm">Kosongkan Perpustakaan</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Hapus seluruh metadata lagu dan cache lokal dari browser</p>
+              </div>
+              <button id="btn-reset-library" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-xs font-medium border border-rose-500/20 transition">
+                Kosongkan
               </button>
             </div>
           </div>
 
-          <!-- IndexedDB Cache Maintenance -->
-          <div class="space-y-3">
-            <label class="font-semibold text-white">Penyimpanan & Cache Musik Offline</label>
-            <p class="text-xs text-zinc-400">Semua lagu yang diputar otomatis tersimpan di IndexedDB browser Anda sehingga bisa didengarkan tanpa kuota internet saat offline.</p>
-
-            <div class="grid grid-cols-2 gap-3 bg-zinc-950 p-3.5 rounded-xl border border-zinc-800">
-              <div>
-                <p class="text-[11px] text-zinc-500 font-medium">Lagu Tersimpan</p>
-                <p id="modal-cache-count" class="text-base font-bold text-white font-mono mt-0.5">0 lagu</p>
-              </div>
-              <div>
-                <p class="text-[11px] text-zinc-500 font-medium">Ukuran Memori Cache</p>
-                <p id="modal-cache-size" class="text-base font-bold text-emerald-400 font-mono mt-0.5">0 MB</p>
-              </div>
-            </div>
-
-            <!-- Action Download All -->
-            <button id="btn-download-all" class="w-full py-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition flex items-center justify-center gap-2">
-              <i data-lucide="download" class="w-4 h-4"></i>
-              <span>Unduh Semua Lagu ke Cache Offline</span>
-            </button>
-
-            <div class="flex flex-col sm:flex-row gap-2 pt-1">
-              <button id="btn-clear-cache" class="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-xs font-semibold border border-amber-500/30 transition flex items-center justify-center gap-2">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                <span>Hapus Audio Cache</span>
-              </button>
-
-              <button id="btn-reset-library" class="flex-1 py-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/50 text-red-400 text-xs font-semibold border border-red-500/30 transition flex items-center justify-center gap-2">
-                <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                <span>Kosongkan Seluruh Library</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- About / App Info -->
-          <div class="border-t border-zinc-800/80 pt-4 flex items-center justify-between text-xs text-zinc-500">
-            <div class="flex items-center gap-2">
-              <i data-lucide="radio" class="w-4 h-4 text-emerald-400"></i>
-              <span>DITUNE v1.0.0 • Client-side Music Player</span>
-            </div>
+          <!-- App Footer Info -->
+          <div class="pt-4 flex items-center justify-between text-[11px] text-zinc-500">
+            <span>DITUNE v1.0.0</span>
             <span>Dijumper Web</span>
           </div>
         </div>

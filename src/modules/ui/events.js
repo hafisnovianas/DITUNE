@@ -833,15 +833,15 @@ export class UIController {
     if (badgeStatus) {
       if (hasCredentials()) {
         badgeStatus.innerHTML = `
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Terhubung & Aktif
+          <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Terhubung
           </span>`;
       } else {
         badgeStatus.innerHTML = `
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <span class="inline-flex items-center gap-1.5 text-xs text-amber-400 font-medium">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            Kredensial Belum Dikonfigurasi
+            Kredensial Belum Siap
           </span>`;
       }
     }

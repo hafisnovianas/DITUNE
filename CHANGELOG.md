@@ -27,6 +27,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Merombak antarmuka modal Pengaturan dari gaya kartu bertumpuk menjadi tata letak baris bersih (*native row-based preferences*) untuk menghilangkan redundansi visual dan meningkatkan keterbacaan.
 - Mengalihkan penyimpanan token akses Google OAuth dari `sessionStorage` ke `localStorage` (dengan batas masa berlaku 1 jam) agar pengguna tidak perlu login ulang setiap kali menutup dan membuka kembali browser atau aplikasi PWA.
 - Menjadikan header kolom tabel daftar lagu sticky (menempel di atas dengan efek blur) saat daftar lagu di-scroll ke bawah.
 - Membersihkan otomatis karakter pemisah garis bawah (_) pada judul lagu mentah menjadi spasi yang rapi.
