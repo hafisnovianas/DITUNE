@@ -153,10 +153,6 @@ export function renderAppShell() {
         <div class="min-w-0">
           <h4 id="player-title" class="text-sm font-semibold text-white truncate hover:underline cursor-pointer">Belum ada lagu</h4>
           <p id="player-artist" class="text-xs text-zinc-400 truncate">Pilih lagu untuk memutar</p>
-          <div id="player-status-badge" class="hidden items-center gap-1 text-[10px] text-emerald-400 font-medium mt-0.5">
-            <i data-lucide="check-circle-2" class="w-3 h-3"></i>
-            <span>Offline Ready</span>
-          </div>
         </div>
       </div>
 

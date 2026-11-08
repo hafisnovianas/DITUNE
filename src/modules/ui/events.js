@@ -315,7 +315,6 @@ export class UIController {
       const artistEl = document.getElementById('player-artist');
       const coverImg = document.getElementById('player-cover-img');
       const coverFallback = document.getElementById('player-cover-fallback');
-      const badgeStatus = document.getElementById('player-status-badge');
       const btnQuickCache = document.getElementById('btn-quick-cache');
       const iconQuickCache = document.getElementById('icon-quick-cache');
 
@@ -330,16 +329,6 @@ export class UIController {
         coverImg.src = '';
         coverImg.classList.add('hidden');
         if (coverFallback) coverFallback.classList.remove('hidden');
-      }
-
-      if (badgeStatus) {
-        if (track.isCached) {
-          badgeStatus.classList.remove('hidden');
-          badgeStatus.classList.add('flex');
-        } else {
-          badgeStatus.classList.add('hidden');
-          badgeStatus.classList.remove('flex');
-        }
       }
 
       if (btnQuickCache) {
