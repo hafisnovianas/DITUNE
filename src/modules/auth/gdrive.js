@@ -354,7 +354,7 @@ function isAudioExtension(name = '') {
  * @returns {Promise<{blob: Blob, mimeType: string}>}
  */
 export async function downloadDriveAudioFile(fileId, onProgress = null, expectedSize = 0) {
-  let token = await getAccessToken(false).catch(() => getAccessToken(true));
+  let token = await getAccessToken(true);
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 
   let resp = await fetch(url, {

@@ -383,6 +383,9 @@ export class UIController {
             : '<i id="icon-play-state" data-lucide="play" class="w-5 h-5 fill-current ml-0.5"></i>';
           refreshLucideIcons();
         }
+        if (track && !track.isCached) {
+          this.renderMainContent();
+        }
       }
     });
 
@@ -415,6 +418,7 @@ export class UIController {
     });
 
     this.engine.on('error', (msg) => {
+      this.renderMainContent();
       showToast(msg, 'error');
     });
   }
