@@ -114,15 +114,15 @@ export function renderAppShell() {
         </header>
 
         <!-- Mobile Filter Tabs -->
-        <div class="md:hidden flex items-center gap-1 px-4 py-2 bg-zinc-900/60 border-b border-zinc-800/60 overflow-x-auto no-scrollbar">
+        <div class="md:hidden flex items-center gap-1 px-4 py-2 bg-zinc-900/60 border-b border-zinc-800/60 overflow-x-auto no-scrollbar flex-shrink-0">
           <button data-tab="all" class="nav-tab active px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-emerald-500 text-zinc-950">Semua Lagu</button>
           <button data-tab="artists" class="nav-tab px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-zinc-800 text-zinc-300">Artis</button>
           <button data-tab="albums" class="nav-tab px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-zinc-800 text-zinc-300">Album</button>
           <button data-tab="offline" class="nav-tab px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap bg-zinc-800 text-zinc-300">Offline</button>
         </div>
 
-        <!-- Main Content Area (Scrollable) -->
-        <div id="content-container" class="flex-1 overflow-y-auto p-4 md:p-6 pb-6">
+        <!-- Main Content Area -->
+        <div id="content-container" class="flex-1 flex flex-col min-h-0 overflow-hidden p-4 md:p-6 pb-0">
           <!-- Dynamically rendered track list / album view -->
         </div>
       </main>
@@ -396,8 +396,9 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
   }).join('');
 
   return `
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
+    <div class="flex-1 flex flex-col min-h-0 h-full">
+      <!-- Fixed Header Area -->
+      <div class="flex-shrink-0 pb-3 flex items-center justify-between">
         <div>
           <h2 class="text-2xl font-black text-white">Daftar Lagu</h2>
           <p class="text-xs text-zinc-400 mt-0.5">${tracks.length} lagu tersedia</p>
@@ -410,16 +411,16 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         </div>
       </div>
 
-      <!-- Table Header (Sticky saat di-scroll) -->
-      <div class="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur-md py-2.5 -mx-2 px-3 flex items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 shadow-sm">
+      <!-- Fixed Table Header -->
+      <div class="flex-shrink-0 py-2.5 px-3 flex items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
         <span class="w-8 text-center">#</span>
         <span class="flex-1">Judul</span>
         <span class="hidden md:block w-1/4">Album</span>
         <span class="w-24 text-right">Durasi</span>
       </div>
 
-      <!-- Track Items -->
-      <div class="space-y-1">
+      <!-- Scrollable Track Rows -->
+      <div id="track-list-scroll" class="flex-1 overflow-y-auto space-y-1 pt-2 pb-6 min-h-0">
         ${rows}
       </div>
     </div>
@@ -454,10 +455,14 @@ export function renderArtistsView(tracks = [], onArtistSelect = null) {
   `).join('');
 
   return `
-    <div class="space-y-4">
-      <h2 class="text-2xl font-black text-white">Artis</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        ${cards}
+    <div class="flex-1 flex flex-col min-h-0 h-full">
+      <div class="flex-shrink-0 pb-4">
+        <h2 class="text-2xl font-black text-white">Artis</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto min-h-0 pb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          ${cards}
+        </div>
       </div>
     </div>
   `;
@@ -496,10 +501,14 @@ export function renderAlbumsView(tracks = []) {
   }).join('');
 
   return `
-    <div class="space-y-4">
-      <h2 class="text-2xl font-black text-white">Album</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        ${cards}
+    <div class="flex-1 flex flex-col min-h-0 h-full">
+      <div class="flex-shrink-0 pb-4">
+        <h2 class="text-2xl font-black text-white">Album</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto min-h-0 pb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          ${cards}
+        </div>
       </div>
     </div>
   `;

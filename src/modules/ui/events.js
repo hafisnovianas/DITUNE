@@ -253,7 +253,8 @@ export class UIController {
   renderMainContent() {
     const container = document.getElementById('content-container');
     if (!container) return;
-    const prevScrollTop = container.scrollTop;
+    const activeScrollEl = container.querySelector('.overflow-y-auto') || container;
+    const prevScrollTop = activeScrollEl.scrollTop;
 
     if (this.activeTab === 'artists' && !this.filterArtist) {
       container.innerHTML = renderArtistsView(this.allTracks);
@@ -268,9 +269,9 @@ export class UIController {
       if (this.filterArtist || this.filterAlbum) {
         const filterTitle = this.filterArtist ? `Artis: ${this.filterArtist}` : `Album: ${this.filterAlbum}`;
         const backBtn = document.createElement('div');
-        backBtn.className = 'mb-4 flex items-center gap-2';
+        backBtn.className = 'mb-3 flex-shrink-0 flex items-center gap-2';
         backBtn.innerHTML = `
-          <button id="btn-clear-filter" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 hover:text-white transition">
+          <button id="btn-clear-filter" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer">
             <i data-lucide="x" class="w-3.5 h-3.5"></i>
             <span>Kembali ke semua ${this.filterArtist ? 'Artis' : 'Album'}</span>
           </button>
@@ -281,7 +282,8 @@ export class UIController {
       }
     }
 
-    container.scrollTop = prevScrollTop;
+    const newScrollEl = container.querySelector('.overflow-y-auto') || container;
+    newScrollEl.scrollTop = prevScrollTop;
     refreshLucideIcons();
   }
 
