@@ -435,16 +435,16 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         data-id="${track.id}"
       >
         <!-- Index / Play indicator -->
-        <div class="track-play-btn text-center flex-shrink-0 cursor-pointer" data-id="${track.id}">
+        <div class="track-play-btn group/btn w-8 h-8 flex items-center justify-center -ml-1 rounded-lg hover:bg-zinc-800/60 transition text-center flex-shrink-0 cursor-pointer" data-id="${track.id}">
           ${
             isActive && isPlaying
-              ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover:hidden" title="Sedang memutar">
+              ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover/btn:hidden" title="Sedang memutar">
                    <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-1"></span>
                    <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-2"></span>
                    <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-3"></span>
                    <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-4"></span>
                  </div>
-                 <i data-lucide="pause" class="w-4 h-4 text-emerald-400 hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
+                 <i data-lucide="pause" class="w-4 h-4 text-emerald-400 hidden group-hover/btn:inline-block ml-auto mr-auto fill-current"></i>`
               : `<span class="text-xs text-zinc-400 group-hover:hidden font-mono">${idx + 1}</span>
                  <i data-lucide="play" class="w-4 h-4 text-white hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
           }
