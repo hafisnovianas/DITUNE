@@ -37,6 +37,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Memperbaiki penanganan kloning Response body pada Service Worker PWA (`sw.js`) untuk mencegah error `Response body is already used` saat caching navigasi HTML dan menaikkan versi cache menjadi `ditune-shell-v3`.
 - Memperbaiki tata letak area konten utama dengan memisahkan header halaman dan kolom tabel menjadi elemen tetap (*non-scrollable fixed header*), sehingga judul tidak tergulung keluar layar dan baris-baris lagu bergulir secara independen di bawahnya.
 - Menambahkan kursor `pointer` global untuk seluruh tombol interaktif pada aplikasi guna menyempurnakan ergonomi antarmuka.
 - Memperbaiki indikator unduhan yang berlebihan: menghilangkan toast mengambang saat memutar lagu biasa dan mengembalikan kemurnian slider/timer player bar khusus untuk posisi pemutaran audio.

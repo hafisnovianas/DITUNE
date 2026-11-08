@@ -4,7 +4,7 @@
  * Audio Blobs are cached separately in IndexedDB.
  */
 
-const CACHE_NAME = 'ditune-shell-v2';
+const CACHE_NAME = 'ditune-shell-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -66,10 +66,11 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
+            const responseForRequest = networkResponse.clone();
+            const responseForIndex = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-              cache.put('/index.html', responseToCache.clone());
+              cache.put(event.request, responseForRequest);
+              cache.put('/index.html', responseForIndex);
             });
           }
           return networkResponse;
