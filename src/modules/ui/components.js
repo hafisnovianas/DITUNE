@@ -131,8 +131,8 @@ export function renderAppShell() {
     <!-- Persistent Bottom Player Bar (In-Flow Flex Row) -->
     <div id="player-bar" class="h-24 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 px-4 md:px-6 flex items-center justify-between flex-shrink-0 z-40 transition-all">
       
-      <!-- Track Info (Left) -->
-      <div class="flex items-center gap-3 w-1/4 min-w-[160px] md:min-w-[240px]">
+      <!-- Track Info (Left - Desktop Only) -->
+      <div class="hidden md:flex items-center gap-3 w-1/4 min-w-[240px]">
         <div id="player-cover-container" class="w-14 h-14 rounded-xl bg-gradient-to-br from-zinc-800 via-zinc-850 to-emerald-950/40 border border-zinc-700/50 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg shadow-black/40 relative group">
           <img id="player-cover-img" src="" alt="" class="hidden w-full h-full object-cover" />
           <div id="player-cover-fallback" class="flex items-center justify-center text-emerald-400/70 group-hover:text-emerald-400 transition">
