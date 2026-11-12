@@ -1721,27 +1721,25 @@ export class UIController {
       };
 
       const updateBatchProgress = () => {
-        const sum = fileProgress.reduce((acc, v) => acc + v, 0);
         const doneCount = uploadedCount + failedCount;
-        const avgPercent =
-          doneCount === toUpload.length
-            ? 100
-            : Math.min(99, Math.floor(sum / toUpload.length));
+        const activeEntries = Array.from(activeFiles.entries()).sort((a, b) => a[0] - b[0]);
 
-        const activeNames = Array.from(activeFiles.entries())
-          .sort((a, b) => a[0] - b[0])
-          .map(([, name]) => name);
-
+        let displayIndex = Math.min(toUpload.length, doneCount + 1);
         let label = 'Menyimpan ke library...';
-        if (activeNames.length === 1) {
-          label = activeNames[0];
-        } else if (activeNames.length > 1) {
-          label = `${activeNames[0]} (+${activeNames.length - 1} lainnya)`;
+        let percent = 0;
+
+        if (activeEntries.length > 0) {
+          const [activeIdx, activeName] = activeEntries[0];
+          displayIndex = activeIdx + 1;
+          label = activeName;
+          percent = fileProgress[activeIdx] || 0;
         } else if (doneCount === toUpload.length) {
+          displayIndex = toUpload.length;
           label = 'Menyelesaikan upload...';
+          percent = 100;
         }
 
-        showProgressToast('batch-upload', `(${doneCount}/${toUpload.length}) ${label}`, avgPercent, false);
+        showProgressToast('batch-upload', `(${displayIndex}/${toUpload.length}) ${label}`, percent, false);
       };
 
       updateBatchProgress();
