@@ -1713,7 +1713,6 @@ export class UIController {
           .then(async () => {
             await this.reloadTracks();
             this.renderMainContent();
-            await this.updateStorageInfo();
           })
           .catch((err) => {
             console.warn('Post-upload UI refresh error:', err);
@@ -1747,7 +1746,7 @@ export class UIController {
 
       updateBatchProgress();
 
-      const workerCount = Math.min(2, toUpload.length);
+      const workerCount = 1;
       const workers = Array.from({ length: workerCount }, async () => {
         while (nextIndex < toUpload.length) {
           const currentIndex = nextIndex++;
@@ -1767,7 +1766,7 @@ export class UIController {
             activeFiles.delete(currentIndex);
             updateBatchProgress();
 
-            await enqueuePostUploadRefresh();
+            enqueuePostUploadRefresh();
           } catch (err) {
             failedCount++;
             lastErrorMsg = err.message;
@@ -1781,6 +1780,9 @@ export class UIController {
 
       await Promise.all(workers);
       await refreshChain;
+      if (uploadedCount > 0) {
+        await this.updateStorageInfo();
+      }
 
       const summaryParts = [`${uploadedCount} lagu diunggah ke "${folder.name}"`];
       if (duplicates.length > 0) summaryParts.push(`${duplicates.length} duplikat dilewati`);
