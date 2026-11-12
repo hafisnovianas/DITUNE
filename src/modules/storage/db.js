@@ -7,13 +7,23 @@ const DB_NAME = 'ditune_db';
 const DB_VERSION = 1;
 
 let dbInstance = null;
+let openPromise = null;
+
+function invalidateDbInstance(targetDb = null) {
+  if (!targetDb || dbInstance === targetDb) {
+    dbInstance = null;
+  }
+}
 
 export function openDB() {
   if (dbInstance) {
     return Promise.resolve(dbInstance);
   }
+  if (openPromise) {
+    return openPromise;
+  }
 
-  return new Promise((resolve, reject) => {
+  openPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
@@ -45,31 +55,66 @@ export function openDB() {
     };
 
     request.onsuccess = (event) => {
-      dbInstance = event.target.result;
-      resolve(dbInstance);
+      const db = event.target.result;
+      db.onversionchange = () => {
+        try {
+          db.close();
+        } catch {
+          // ignore close errors
+        }
+        invalidateDbInstance(db);
+      };
+      db.onclose = () => {
+        invalidateDbInstance(db);
+      };
+      dbInstance = db;
+      resolve(db);
     };
 
     request.onerror = (event) => {
       console.error('Failed to open IndexedDB:', event.target.error);
       reject(event.target.error);
     };
+
+    request.onblocked = () => {
+      invalidateDbInstance();
+    };
+  }).finally(() => {
+    openPromise = null;
   });
+
+  return openPromise;
+}
+
+/**
+ * Open an IDBTransaction and transparently reopen if the cached DB connection is closing/closed
+ */
+async function createTransaction(storeNames, mode = 'readonly') {
+  const db = await openDB();
+  try {
+    return db.transaction(storeNames, mode);
+  } catch (err) {
+    if (err?.name === 'InvalidStateError') {
+      invalidateDbInstance(db);
+      const freshDb = await openDB();
+      return freshDb.transaction(storeNames, mode);
+    }
+    throw err;
+  }
 }
 
 /**
  * Perform a transaction helper
  */
 async function getStore(storeName, mode = 'readonly') {
-  const db = await openDB();
-  const tx = db.transaction(storeName, mode);
+  const tx = await createTransaction(storeName, mode);
   return tx.objectStore(storeName);
 }
 
 // ================= TRACKS =================
 
 export async function saveTrack(track) {
-  const db = await openDB();
-  const tx = db.transaction(['tracks', 'audio_blobs'], 'readwrite');
+  const tx = await createTransaction(['tracks', 'audio_blobs'], 'readwrite');
   const trackStore = tx.objectStore('tracks');
   const blobStore = tx.objectStore('audio_blobs');
 
@@ -104,8 +149,7 @@ export async function saveTrack(track) {
 }
 
 export async function saveTracks(tracks) {
-  const db = await openDB();
-  const tx = db.transaction(['tracks', 'audio_blobs'], 'readwrite');
+  const tx = await createTransaction(['tracks', 'audio_blobs'], 'readwrite');
   const trackStore = tx.objectStore('tracks');
   const blobStore = tx.objectStore('audio_blobs');
 
@@ -152,8 +196,7 @@ export async function getTrack(id) {
 }
 
 export async function deleteTrack(id) {
-  const db = await openDB();
-  const tx = db.transaction(['tracks', 'audio_blobs', 'covers'], 'readwrite');
+  const tx = await createTransaction(['tracks', 'audio_blobs', 'covers'], 'readwrite');
   tx.objectStore('tracks').delete(id);
   tx.objectStore('audio_blobs').delete(id);
   tx.objectStore('covers').delete(id);
@@ -167,8 +210,7 @@ export async function deleteTrack(id) {
 // ================= AUDIO BLOBS =================
 
 export async function saveAudioBlob(id, blob, mimeType = 'audio/mpeg') {
-  const db = await openDB();
-  const tx = db.transaction(['audio_blobs', 'tracks'], 'readwrite');
+  const tx = await createTransaction(['audio_blobs', 'tracks'], 'readwrite');
   const blobStore = tx.objectStore('audio_blobs');
   const trackStore = tx.objectStore('tracks');
 
@@ -236,8 +278,7 @@ export async function getAllAudioBlobIds() {
 }
 
 export async function removeAudioBlob(id) {
-  const db = await openDB();
-  const tx = db.transaction(['audio_blobs', 'tracks'], 'readwrite');
+  const tx = await createTransaction(['audio_blobs', 'tracks'], 'readwrite');
   tx.objectStore('audio_blobs').delete(id);
 
   const trackStore = tx.objectStore('tracks');
@@ -392,8 +433,7 @@ export async function getStorageStats() {
 }
 
 export async function clearAllCache() {
-  const db = await openDB();
-  const tx = db.transaction(['audio_blobs', 'covers', 'tracks'], 'readwrite');
+  const tx = await createTransaction(['audio_blobs', 'covers', 'tracks'], 'readwrite');
   tx.objectStore('audio_blobs').clear();
   tx.objectStore('covers').clear();
 
@@ -418,8 +458,7 @@ export async function clearAllCache() {
 }
 
 export async function clearAllData() {
-  const db = await openDB();
-  const tx = db.transaction(['tracks', 'audio_blobs', 'covers'], 'readwrite');
+  const tx = await createTransaction(['tracks', 'audio_blobs', 'covers'], 'readwrite');
   tx.objectStore('tracks').clear();
   tx.objectStore('audio_blobs').clear();
   tx.objectStore('covers').clear();

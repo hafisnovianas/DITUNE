@@ -285,4 +285,33 @@ describe('IndexedDB Storage Engine', () => {
     await clearIgnoredTracks();
     assert.deepEqual(await getIgnoredTracks(), []);
   });
+
+  test('should automatically reopen DB when connection is closed or deleted via versionchange', async () => {
+    const db1 = await openDB();
+    db1.close();
+
+    // Subsequent transaction after manual close must transparently recover without InvalidStateError
+    await setSetting('recovered_after_close', { ok: true });
+    assert.deepEqual(await getSetting('recovered_after_close'), { ok: true });
+
+    // Simulate DevTools "Clear site data" / external deleteDatabase triggering onversionchange
+    await new Promise((resolve, reject) => {
+      const delReq = indexedDB.deleteDatabase('ditune_db');
+      delReq.onsuccess = () => resolve();
+      delReq.onerror = (e) => reject(e.target.error);
+    });
+
+    await setSetting('recovered_after_delete', 'yes');
+    assert.equal(await getSetting('recovered_after_delete'), 'yes');
+
+    // Simulate synchronous InvalidStateError ("connection is closing") before onclose event fires
+    const db2 = await openDB();
+    db2.transaction = () => {
+      const err = new Error('The database connection is closing.');
+      err.name = 'InvalidStateError';
+      throw err;
+    };
+    await setSetting('recovered_after_invalid_state', 42);
+    assert.equal(await getSetting('recovered_after_invalid_state'), 42);
+  });
 });

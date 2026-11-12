@@ -60,6 +60,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Menangani penutupan atau penghapusan koneksi IndexedDB (`onversionchange`, `onclose`, serta retry otomatis saat `InvalidStateError` via `createTransaction`) di `src/modules/storage/db.js` agar tidak gagal setelah *Clear site data* atau saat browser menutup koneksi idle.
 - Menambahkan *single-flight lock* (`pendingTokenPromise`), `error_callback` GIS, validasi token/scope callback, dan guard `currentAccessToken === token` pada `fetchDriveWithAuth()` untuk mencegah tabrakan callback OAuth paralel maupun Promise menggantung saat popup ditutup/diblokir.
 - Menambahkan guard status sibuk lintas operasi (`hasActiveTransferOrSync`, `isPicking`, `isSyncing`, `isBatchUploading`, `isBatchDownloading`, `downloadingTrackIds`) serta guard koneksi `navigator.onLine` pada alur upload, impor Picker, sinkronisasi, unduhan offline, cache, dan reset library.
 - Memserialisasikan pembaruan IndexedDB/UI pasca-upload via `refreshChain`, memperbarui status unduhan batch secara inkremental per lagu, dan melacak timer auto-close (`_fadeTimer`, `_removeTimer`) pada `showProgressToast()` / `removeProgressToast()`.
