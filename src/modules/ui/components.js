@@ -68,7 +68,25 @@ export function renderAppShell() {
       </aside>
 
       <!-- Main Area -->
-      <main class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <main id="main-workspace" class="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+        
+        <!-- Hidden File Input for Batch Audio Upload -->
+        <input
+          id="upload-audio-input"
+          type="file"
+          multiple
+          accept="audio/*,video/mp4,video/webm,.mp3,.m4a,.aac,.flac,.wav,.ogg,.opus,.mp4,.m4v,.webm"
+          class="hidden"
+        />
+
+        <!-- Drag & Drop Upload Overlay -->
+        <div id="upload-drop-overlay" class="hidden absolute inset-0 z-30 bg-zinc-950/90 backdrop-blur-sm border-2 border-dashed border-emerald-500/60 m-3 md:m-5 rounded-2xl items-center justify-center pointer-events-none">
+          <div class="text-center px-6 py-4">
+            <i data-lucide="upload" class="w-10 h-10 text-emerald-400 mx-auto mb-2"></i>
+            <p class="text-base font-bold text-white">Lepas File Audio di Sini</p>
+            <p class="text-xs text-zinc-400 mt-1">Otomatis diunggah ke folder DITUNE Music & disimpan offline</p>
+          </div>
+        </div>
         
         <!-- Top Navigation Bar -->
         <header class="h-16 border-b border-zinc-800/80 bg-zinc-900/40 backdrop-blur px-4 md:px-6 flex items-center justify-between gap-4 flex-shrink-0">
@@ -231,24 +249,20 @@ export function renderAppShell() {
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Google Drive</span>
               <div id="status-credential-badge">
-                <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  Terhubung
-                </span>
+                <span class="text-xs text-zinc-400 font-medium">Siap Login</span>
               </div>
             </div>
 
             <div class="flex items-center justify-between gap-4 py-1">
               <div class="min-w-0 flex-1">
-                <p id="connected-folder-name" class="font-medium text-white truncate text-sm">Belum ada folder terhubung</p>
-                <p class="text-xs text-zinc-400 mt-0.5">Folder sumber lagu yang disinkronkan</p>
+                <p id="connected-folder-name" class="font-medium text-white truncate text-sm">DITUNE Music (Otomatis)</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Folder upload aplikasi atau impor file audio Drive</p>
               </div>
-              <button id="btn-change-folder" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition flex items-center gap-1.5">
+              <button id="btn-settings-import-drive" class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition flex items-center gap-1.5 cursor-pointer">
                 <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-zinc-400"></i>
-                <span>Ganti Folder</span>
+                <span>Impor dari Drive</span>
               </button>
             </div>
-            <span id="connected-folder-badge" class="hidden"></span>
           </div>
 
           <!-- Section 2: Penyimpanan Offline -->
@@ -305,9 +319,12 @@ export function renderAppShell() {
           </div>
 
           <!-- App Footer Info -->
-          <div class="pt-4 flex items-center justify-between text-[11px] text-zinc-500">
-            <span>DITUNE v1.0.0</span>
-            <span>Dijumper Web</span>
+          <div class="pt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500">
+            <span>DITUNE v1.3.0 • Dijumper Web</span>
+            <div class="flex items-center gap-3">
+              <a href="/privacy.html" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-300 transition underline-offset-2 hover:underline">Kebijakan Privasi</a>
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer" class="hover:text-zinc-300 transition underline-offset-2 hover:underline">Ketentuan Layanan</a>
+            </div>
           </div>
         </div>
       </div>
@@ -372,43 +389,31 @@ export function renderAppShell() {
  */
 export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = false, connectedFolder = null) {
   if (tracks.length === 0) {
-    if (connectedFolder && connectedFolder.id) {
-      return `
-        <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400">
-          <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-zinc-600">
-            <i data-lucide="music" class="w-8 h-8"></i>
-          </div>
-          <h3 class="text-lg font-bold text-zinc-200">Perpustakaan Kosong</h3>
-          <p class="text-sm max-w-md text-zinc-400 mt-1">
-            Folder "${escapeHtml(connectedFolder.name)}" terhubung. Tekan tombol di bawah untuk menyinkronkan lagu.
-          </p>
-          <div class="flex items-center gap-3 mt-6">
-            <button id="btn-sync-folder" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition cursor-pointer">
-              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-              <span>Sinkronkan Lagu</span>
-            </button>
-            <button id="btn-empty-picker" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition cursor-pointer">
-              <i data-lucide="folder" class="w-4 h-4"></i>
-              <span>Ganti Folder</span>
-            </button>
-          </div>
-        </div>
-      `;
-    }
+    const subtitle = connectedFolder?.id
+      ? `Folder "${escapeHtml(connectedFolder.name)}" terhubung. Unggah lagu baru atau sinkronkan dari Google Drive.`
+      : 'Unggah banyak lagu sekaligus ke Google Drive Anda atau impor file audio yang sudah ada.';
 
     return `
-      <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400">
+      <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400 px-4">
         <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-zinc-600">
           <i data-lucide="music" class="w-8 h-8"></i>
         </div>
-        <h3 class="text-lg font-bold text-zinc-200">Belum ada lagu di library</h3>
+        <h3 class="text-lg font-bold text-zinc-200">${connectedFolder?.id ? 'Perpustakaan Kosong' : 'Belum ada lagu di library'}</h3>
         <p class="text-sm max-w-md text-zinc-400 mt-1">
-          Hubungkan folder musik dari Google Drive Anda untuk mulai mendengarkan.
+          ${subtitle}
         </p>
-        <div class="flex items-center gap-3 mt-6">
-          <button id="btn-empty-picker" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-sm transition cursor-pointer">
+        <div class="flex flex-wrap items-center justify-center gap-2.5 mt-6">
+          <button id="btn-upload-tracks" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-950 font-bold text-sm transition cursor-pointer">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <span>Upload Lagu</span>
+          </button>
+          <button id="btn-empty-picker" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-200 text-sm font-semibold transition cursor-pointer">
             <i data-lucide="folder-plus" class="w-4 h-4"></i>
-            <span>Pilih Folder Drive</span>
+            <span>Impor dari Drive</span>
+          </button>
+          <button id="btn-sync-folder" class="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-zinc-300 text-sm font-semibold transition cursor-pointer">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            <span>Sinkronkan Lagu</span>
           </button>
         </div>
       </div>
@@ -419,23 +424,24 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
     const isActive = track.id === currentTrackId;
     const activeClass = isActive ? 'bg-zinc-800/80 text-emerald-400' : 'hover:bg-zinc-900/60 text-zinc-300';
     const activeText = isActive ? 'text-emerald-400' : 'text-white';
+    const safeTrackId = escapeHtml(track.id);
 
     const cacheIcon = track.isCached
       ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20" title="Tersimpan di IndexedDB">
            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
            <span class="hidden sm:inline">Offline</span>
          </span>`
-      : `<button class="btn-cache-track text-zinc-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-zinc-800 transition" data-id="${track.id}" title="Unduh ke Cache Offline">
+      : `<button class="btn-cache-track text-zinc-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-zinc-800 transition" data-id="${safeTrackId}" title="Unduh ke Cache Offline">
            <i data-lucide="download" class="w-4 h-4"></i>
          </button>`;
 
     return `
       <div 
         class="track-row group grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
-        data-id="${track.id}"
+        data-id="${safeTrackId}"
       >
         <!-- Index / Play indicator -->
-        <div class="track-play-btn group/btn w-8 h-8 flex items-center justify-center -ml-1 rounded-lg hover:bg-zinc-800/60 transition text-center flex-shrink-0 cursor-pointer" data-id="${track.id}">
+        <div class="track-play-btn group/btn w-8 h-8 flex items-center justify-center -ml-1 rounded-lg hover:bg-zinc-800/60 transition text-center flex-shrink-0 cursor-pointer" data-id="${safeTrackId}">
           ${
             isActive && isPlaying
               ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover/btn:hidden" title="Sedang memutar">
@@ -465,7 +471,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
         <div class="track-cache-status flex items-center justify-end gap-2.5 min-w-0 pr-1">
           ${cacheIcon}
           <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${formatDuration(track.duration)}</span>
-          <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${track.id}" title="Opsi Lagu">
+          <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${safeTrackId}" title="Opsi Lagu">
             <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
           </button>
         </div>
@@ -476,15 +482,23 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
   return `
     <div class="flex-1 flex flex-col min-h-0 h-full">
       <!-- Fixed Header Area -->
-      <div class="flex-shrink-0 pb-3 flex items-center justify-between">
+      <div class="flex-shrink-0 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div>
           <h2 class="text-2xl font-black text-white">Daftar Lagu</h2>
           <p class="text-xs text-zinc-400 mt-0.5">${tracks.length} lagu tersedia</p>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="btn-sync-folder" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer" title="Periksa dan sinkronkan lagu baru dari Google Drive">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btn-upload-tracks" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-zinc-950 transition cursor-pointer" title="Unggah lagu dari perangkat ke Google Drive">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+            <span>Upload Lagu</span>
+          </button>
+          <button id="btn-import-drive" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer" title="Impor file audio yang sudah ada di Google Drive">
+            <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
+            <span>Impor Drive</span>
+          </button>
+          <button id="btn-sync-folder" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 disabled:cursor-not-allowed text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer" title="Sinkronkan lagu dari Google Drive">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-            <span>Sinkronkan Lagu</span>
+            <span>Sinkronkan</span>
           </button>
         </div>
       </div>
@@ -634,9 +648,9 @@ export function showToast(message, type = 'info', duration = 3500) {
 }
 
 /**
- * Real-time Progress Toast (for active audio download)
+ * Real-time Progress Toast (for active audio download or batch upload)
  */
-export function showProgressToast(id, message, percent = 0) {
+export function showProgressToast(id, message, percent = 0, autoClose = true) {
   const container = document.getElementById('toast-container');
   if (!container) return null;
 
@@ -646,6 +660,16 @@ export function showProgressToast(id, message, percent = 0) {
     toast.id = `toast-${id}`;
     toast.className = 'flex flex-col gap-2 px-4 py-3 rounded-xl border backdrop-blur-md shadow-xl text-xs font-medium transition-all duration-300 bg-zinc-900 border-emerald-500/40 text-zinc-200 pointer-events-auto min-w-[280px]';
     container.appendChild(toast);
+  } else {
+    if (toast._removeTimer) {
+      clearTimeout(toast._removeTimer);
+      toast._removeTimer = null;
+    }
+    if (toast._fadeTimer) {
+      clearTimeout(toast._fadeTimer);
+      toast._fadeTimer = null;
+    }
+    toast.classList.remove('opacity-0', 'translate-x-4');
   }
 
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
@@ -666,10 +690,10 @@ export function showProgressToast(id, message, percent = 0) {
     </div>
   `;
 
-  if (safePercent >= 100) {
-    setTimeout(() => {
+  if (autoClose && safePercent >= 100) {
+    toast._fadeTimer = setTimeout(() => {
       toast.classList.add('opacity-0', 'translate-x-4');
-      setTimeout(() => toast.remove(), 300);
+      toast._removeTimer = setTimeout(() => toast.remove(), 300);
     }, 1200);
   }
 
@@ -679,8 +703,10 @@ export function showProgressToast(id, message, percent = 0) {
 export function removeProgressToast(id) {
   const toast = document.getElementById(`toast-${id}`);
   if (toast) {
+    if (toast._fadeTimer) clearTimeout(toast._fadeTimer);
+    if (toast._removeTimer) clearTimeout(toast._removeTimer);
     toast.classList.add('opacity-0', 'translate-x-4');
-    setTimeout(() => toast.remove(), 300);
+    toast._removeTimer = setTimeout(() => toast.remove(), 300);
   }
 }
 

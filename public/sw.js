@@ -4,11 +4,13 @@
  * Audio Blobs are cached separately in IndexedDB.
  */
 
-const CACHE_NAME = 'ditune-shell-v5';
+const CACHE_NAME = 'ditune-shell-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/privacy.html',
+  '/terms.html',
   '/favicon.svg',
   '/icon-192.png',
   '/icon-512.png',
@@ -62,22 +64,29 @@ self.addEventListener('fetch', (event) => {
     (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html'));
 
   if (isHtmlNavigation) {
+    const isRootPath = url.pathname === '/' || url.pathname === '/index.html';
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseForRequest = networkResponse.clone();
-            const responseForIndex = networkResponse.clone();
+            const responseForIndex = isRootPath ? networkResponse.clone() : null;
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseForRequest);
-              cache.put('/index.html', responseForIndex);
+              if (responseForIndex) {
+                cache.put('/index.html', responseForIndex);
+              }
             });
           }
           return networkResponse;
         })
         .catch(() => {
           return caches.match(event.request).then((cached) => {
-            return cached || caches.match('/index.html') || caches.match('/');
+            if (cached) return cached;
+            if (isRootPath) {
+              return caches.match('/index.html').then((cachedIndex) => cachedIndex || caches.match('/'));
+            }
+            return caches.match(url.pathname);
           });
         })
     );

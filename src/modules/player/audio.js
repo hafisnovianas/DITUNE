@@ -304,7 +304,7 @@ export class AudioEngine {
   }
 
   resume() {
-    if (this.audio.src) {
+    if (this.audio.src && this.currentTrack) {
       this.audio.play().catch((e) => console.warn('Play interrupted:', e));
     } else if (this.currentTrack) {
       this.loadAndPlay(this.currentTrack);
@@ -313,6 +313,31 @@ export class AudioEngine {
 
   pause() {
     this.audio.pause();
+  }
+
+  stop() {
+    this.playRequestId++;
+    this.pause();
+    this.isLoading = false;
+    this.playlist = [];
+    this.currentIndex = -1;
+    this.currentTrack = null;
+    if (this.currentBlobUrl) {
+      URL.revokeObjectURL(this.currentBlobUrl);
+      this.currentBlobUrl = null;
+    }
+    if (this.currentCoverUrl) {
+      URL.revokeObjectURL(this.currentCoverUrl);
+      this.currentCoverUrl = null;
+    }
+    if (typeof this.audio.removeAttribute === 'function') {
+      this.audio.removeAttribute('src');
+    } else {
+      this.audio.src = '';
+    }
+    if (typeof this.audio.load === 'function') {
+      this.audio.load();
+    }
   }
 
   togglePlay() {

@@ -1,18 +1,43 @@
 /**
  * DITUNE Google Drive & Google Identity Services (GIS) Module
- * Handles OAuth 2.0 (scope: drive.readonly), Google Picker API, and audio streaming.
+ * Handles OAuth 2.0 (scope: drive.file), Google Picker API, folder management,
+ * resumable uploads, authorized file listing, and audio streaming.
  */
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
-const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
+export const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+export const DITUNE_FOLDER_NAME = 'DITUNE Music';
 const SESSION_TOKEN_KEY = 'ditune_oauth_token';
 const SESSION_EXPIRES_KEY = 'ditune_oauth_expires_at';
+const SESSION_SCOPE_KEY = 'ditune_oauth_scope';
+
+const AUDIO_MIME_BY_EXT = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  opus: 'audio/opus',
+  webm: 'audio/webm',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+};
 
 let gisLoaded = false;
 let gapiLoaded = false;
 let tokenClient = null;
+let tokenClientApiRef = null;
 let currentAccessToken = null;
 let tokenExpiresAt = 0;
+let pendingTokenPromise = null;
+const pendingScripts = new Map();
+
+function getWebStorages() {
+  const storages = [];
+  if (typeof localStorage !== 'undefined') storages.push(localStorage);
+  if (typeof sessionStorage !== 'undefined') storages.push(sessionStorage);
+  return storages;
+}
 
 /**
  * Clean up any legacy custom credentials from browser localStorage
@@ -26,8 +51,9 @@ if (typeof localStorage !== 'undefined') {
  * Get Google API credentials from project environment (.env)
  */
 export function getCredentials() {
-  const clientId = (import.meta.env?.VITE_GOOGLE_CLIENT_ID || '').trim();
-  const apiKey = (import.meta.env?.VITE_GOOGLE_API_KEY || '').trim();
+  const nodeEnv = typeof process !== 'undefined' ? process.env : undefined;
+  const clientId = (import.meta.env?.VITE_GOOGLE_CLIENT_ID || nodeEnv?.VITE_GOOGLE_CLIENT_ID || '').trim();
+  const apiKey = (import.meta.env?.VITE_GOOGLE_API_KEY || nodeEnv?.VITE_GOOGLE_API_KEY || '').trim();
 
   return {
     clientId,
@@ -44,55 +70,125 @@ export function hasCredentials() {
 }
 
 /**
- * Load external script dynamically
+ * Check if an unexpired OAuth session matching SCOPES currently exists locally
+ */
+export function hasActiveSession() {
+  if (currentAccessToken && Date.now() < tokenExpiresAt - 60000) {
+    return true;
+  }
+
+  try {
+    for (const storage of getWebStorages()) {
+      const savedToken = storage.getItem(SESSION_TOKEN_KEY);
+      const savedExpires = Number(storage.getItem(SESSION_EXPIRES_KEY)) || 0;
+      const savedScope = storage.getItem(SESSION_SCOPE_KEY);
+
+      if (savedToken && savedScope === SCOPES && Date.now() < savedExpires - 60000) {
+        return true;
+      }
+    }
+  } catch (e) {
+    console.debug('Failed to check active session:', e);
+  }
+
+  return false;
+}
+
+/**
+ * Load external script dynamically (deduplicated across concurrent calls)
  */
 function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
+  if (pendingScripts.has(src)) {
+    return pendingScripts.get(src);
+  }
+
+  if (typeof document === 'undefined') {
+    return Promise.reject(new Error(`Document tidak tersedia untuk memuat script: ${src}`));
+  }
+
+  if (document.querySelector(`script[src="${src}"]`)) {
+    return Promise.resolve();
+  }
+
+  const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = src;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = (err) => reject(new Error(`Gagal memuat script: ${src}`));
+    script.onload = () => {
+      pendingScripts.delete(src);
+      resolve();
+    };
+    script.onerror = () => {
+      pendingScripts.delete(src);
+      script.remove();
+      reject(new Error(`Gagal memuat script: ${src}`));
+    };
     document.head.appendChild(script);
   });
+
+  pendingScripts.set(src, promise);
+  return promise;
 }
 
 /**
- * Initialize Google API and GIS libraries
+ * Ensure Google Identity Services (GIS) OAuth script is loaded
  */
-export async function initGoogleAuth() {
-  const [gis, gapi] = await Promise.allSettled([
-    loadScript('https://accounts.google.com/gsi/client'),
-    loadScript('https://apis.google.com/js/api.js'),
-  ]);
+export async function ensureGisLoaded() {
+  if (typeof window !== 'undefined' && window.google?.accounts?.oauth2) {
+    gisLoaded = true;
+    return;
+  }
+  await loadScript('https://accounts.google.com/gsi/client');
+  gisLoaded = true;
+}
 
-  if (gis.status === 'fulfilled') gisLoaded = true;
-  if (gapi.status === 'fulfilled') gapiLoaded = true;
+/**
+ * Ensure Google Picker (GAPI) library is loaded
+ */
+export async function ensurePickerLoaded() {
+  if (typeof window !== 'undefined' && window.google?.picker) {
+    gapiLoaded = true;
+    return;
+  }
+  await loadScript('https://apis.google.com/js/api.js');
+  gapiLoaded = true;
 
-  if (gapiLoaded && window.gapi) {
-    await new Promise((resolve) => window.gapi.load('picker', resolve));
+  if (typeof window !== 'undefined' && window.gapi && !window.google?.picker) {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Waktu memuat Google Picker habis. Mohon periksa koneksi internet.'));
+      }, 15000);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+      window.gapi.load('picker', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
   }
 }
 
 /**
- * Clear stored access token
+ * Initialize Google API and GIS libraries (background preloader)
+ */
+export async function initGoogleAuth() {
+  await Promise.allSettled([
+    ensureGisLoaded(),
+    ensurePickerLoaded(),
+  ]);
+}
+
+/**
+ * Clear stored access token and scope metadata
  */
 export function clearSessionToken() {
   currentAccessToken = null;
   tokenExpiresAt = 0;
   try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(SESSION_TOKEN_KEY);
-      localStorage.removeItem(SESSION_EXPIRES_KEY);
-    }
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem(SESSION_TOKEN_KEY);
-      sessionStorage.removeItem(SESSION_EXPIRES_KEY);
+    for (const storage of getWebStorages()) {
+      storage.removeItem(SESSION_TOKEN_KEY);
+      storage.removeItem(SESSION_EXPIRES_KEY);
+      storage.removeItem(SESSION_SCOPE_KEY);
     }
   } catch (e) {
     console.debug('Failed to clear stored token:', e);
@@ -100,7 +196,7 @@ export function clearSessionToken() {
 }
 
 /**
- * Get or request a valid access token
+ * Get or request a valid access token for the current SCOPES (single-flight safe)
  */
 export async function getAccessToken(interactive = true) {
   // If token is still valid in memory (with 60s buffer)
@@ -108,12 +204,19 @@ export async function getAccessToken(interactive = true) {
     return currentAccessToken;
   }
 
-  // Restore from localStorage (or fallback sessionStorage) if still valid
+  // Restore from localStorage (or fallback sessionStorage) if scope matches and not expired
   try {
-    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
-    if (storage) {
+    for (const storage of getWebStorages()) {
       const savedToken = storage.getItem(SESSION_TOKEN_KEY);
       const savedExpires = Number(storage.getItem(SESSION_EXPIRES_KEY)) || 0;
+      const savedScope = storage.getItem(SESSION_SCOPE_KEY);
+
+      // Invalidate legacy tokens (e.g. drive.readonly or missing scope) so user grants drive.file cleanly
+      if (savedToken && savedScope !== SCOPES) {
+        clearSessionToken();
+        break;
+      }
+
       if (savedToken && Date.now() < savedExpires - 60000) {
         currentAccessToken = savedToken;
         tokenExpiresAt = savedExpires;
@@ -124,62 +227,129 @@ export async function getAccessToken(interactive = true) {
     console.debug('Failed to read stored token:', e);
   }
 
+  // Deduplicate concurrent OAuth popup/refresh requests across parallel workers
+  if (pendingTokenPromise) {
+    return pendingTokenPromise;
+  }
+
   const { clientId } = getCredentials();
   if (!clientId) {
     throw new Error('Google Client ID belum dikonfigurasi. Silakan buka Pengaturan.');
   }
 
-  if (!gisLoaded || !window.google?.accounts?.oauth2) {
-    await initGoogleAuth();
-  }
-
-  return new Promise((resolve, reject) => {
-    try {
-      if (!tokenClient) {
-        tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: SCOPES,
-          callback: '', // handled dynamically below
-        });
-      }
-
-      tokenClient.callback = (resp) => {
-        if (resp.error) {
-          console.error('[GIS] OAuth error:', resp);
-          reject(new Error(resp.error_description || resp.error || 'Autentikasi Google gagal.'));
-          return;
-        }
-        currentAccessToken = resp.access_token;
-        const expiresInSec = Number(resp.expires_in) || 3600;
-        tokenExpiresAt = Date.now() + expiresInSec * 1000;
-
-        try {
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
-            localStorage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
-          }
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
-            sessionStorage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
-          }
-        } catch (e) {
-          console.debug('Failed to save stored token:', e);
-        }
-
-        resolve(currentAccessToken);
-      };
-
-      tokenClient.requestAccessToken({
-        prompt: interactive ? '' : 'none',
-      });
-    } catch (err) {
-      reject(err);
+  pendingTokenPromise = (async () => {
+    if (typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
+      await ensureGisLoaded();
     }
+
+    if (typeof window === 'undefined' || !window.google?.accounts?.oauth2) {
+      throw new Error('Google Identity Services belum siap. Mohon periksa koneksi internet.');
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        if (!tokenClient || tokenClientApiRef !== window.google.accounts.oauth2) {
+          tokenClientApiRef = window.google.accounts.oauth2;
+          tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: SCOPES,
+            callback: '', // handled dynamically below
+            error_callback: '', // handled dynamically below
+          });
+        }
+
+        tokenClient.callback = (resp) => {
+          if (resp.error) {
+            console.error('[GIS] OAuth error:', resp);
+            reject(new Error(resp.error_description || resp.error || 'Autentikasi Google gagal.'));
+            return;
+          }
+          if (typeof resp.scope === 'string' && !resp.scope.split(/\s+/).includes(SCOPES)) {
+            reject(new Error('Izin Google Drive (drive.file) diperlukan untuk menggunakan DITUNE.'));
+            return;
+          }
+          if (!resp.access_token) {
+            reject(new Error('Token akses Google tidak diterima.'));
+            return;
+          }
+
+          currentAccessToken = resp.access_token;
+          const expiresInSec = Number(resp.expires_in) || 3600;
+          tokenExpiresAt = Date.now() + expiresInSec * 1000;
+
+          try {
+            for (const storage of getWebStorages()) {
+              storage.setItem(SESSION_TOKEN_KEY, currentAccessToken);
+              storage.setItem(SESSION_EXPIRES_KEY, String(tokenExpiresAt));
+              storage.setItem(SESSION_SCOPE_KEY, SCOPES);
+            }
+          } catch (e) {
+            console.debug('Failed to save stored token:', e);
+          }
+
+          resolve(currentAccessToken);
+        };
+
+        tokenClient.error_callback = (err) => {
+          const msg =
+            err?.type === 'popup_closed'
+              ? 'Popup login Google ditutup sebelum selesai.'
+              : err?.type === 'popup_failed_to_open'
+                ? 'Popup login Google diblokir oleh browser.'
+                : err?.message || 'Autentikasi Google dibatalkan atau gagal.';
+          reject(new Error(msg));
+        };
+
+        tokenClient.requestAccessToken({
+          prompt: interactive ? '' : 'none',
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  })().finally(() => {
+    pendingTokenPromise = null;
   });
+
+  return pendingTokenPromise;
+}
+
+function extractDriveErrorFromBody(errorBody, fallbackMessage) {
+  return errorBody?.error?.message || fallbackMessage;
+}
+
+async function parseDriveErrorMessage(resp, fallbackMessage) {
+  const errorBody = await resp.json().catch(() => ({}));
+  return extractDriveErrorFromBody(errorBody, fallbackMessage);
 }
 
 /**
- * Open Google Picker to select audio files or a music folder
+ * Authenticated fetch wrapper for Google Drive API with single-flight-safe 401 retry
+ */
+export async function fetchDriveWithAuth(url, options = {}, interactive = true) {
+  let token = await getAccessToken(interactive);
+  const buildInit = (bearer) => ({
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${bearer}`,
+    },
+  });
+
+  let resp = await fetch(url, buildInit(token));
+  if (resp.status === 401) {
+    // Only invalidate if no other concurrent request already rotated the token
+    if (currentAccessToken === token) {
+      clearSessionToken();
+    }
+    token = await getAccessToken(interactive);
+    resp = await fetch(url, buildInit(token));
+  }
+  return resp;
+}
+
+/**
+ * Open Google Picker to multi-select audio files from Google Drive (drive.file)
  */
 export async function openGooglePicker() {
   const { clientId, apiKey } = getCredentials();
@@ -187,26 +357,44 @@ export async function openGooglePicker() {
     throw new Error('CONFIG_NEEDED');
   }
 
-  await initGoogleAuth();
-  const token = await getAccessToken(true);
+  const pickerLoadPromise =
+    typeof window !== 'undefined' && window.google?.picker
+      ? Promise.resolve()
+      : ensurePickerLoaded().catch((err) => err);
 
-  if (!window.google?.picker) {
+  const hadCachedToken = hasActiveSession();
+  let token = await getAccessToken(true);
+
+  // Verify cached token hasn't been revoked remotely before handing it to Picker iframe
+  if (hadCachedToken) {
+    const verifyResp = await fetchDriveWithAuth(
+      'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)',
+      {},
+      true
+    );
+    if (!verifyResp.ok) {
+      throw new Error(await parseDriveErrorMessage(verifyResp, `Gagal memverifikasi sesi Google Drive (${verifyResp.status})`));
+    }
+    token = await getAccessToken(true);
+  }
+
+  const pickerLoadErr = await pickerLoadPromise;
+  if (pickerLoadErr instanceof Error) {
+    throw pickerLoadErr;
+  }
+
+  if (typeof window === 'undefined' || !window.google?.picker) {
     throw new Error('Google Picker API belum siap. Mohon periksa koneksi internet.');
   }
 
   return new Promise((resolve, reject) => {
     try {
-      // Audio & media files view (supports audio and mp4/webm audio tracks)
       const audioView = new window.google.picker.DocsView()
-        .setMimeTypes('audio/mpeg,audio/mp3,audio/flac,audio/x-m4a,audio/m4a,audio/wav,audio/ogg,audio/aac,video/mp4,video/webm')
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setMimeTypes('audio/mpeg,audio/mp3,audio/flac,audio/x-flac,audio/x-m4a,audio/m4a,audio/mp4,audio/wav,audio/x-wav,audio/ogg,application/ogg,audio/opus,audio/aac,audio/webm,video/mp4,video/webm,application/octet-stream')
         .setMode(window.google.picker.DocsViewMode.LIST)
-        .setLabel('File Musik / Media');
-
-      // Folder view
-      const folderView = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS)
-        .setMimeTypes('application/vnd.google-apps.folder')
-        .setSelectFolderEnabled(true)
-        .setLabel('Pilih Folder');
+        .setLabel('File Audio / Musik');
 
       const appId = clientId.split('-')[0] || '';
 
@@ -214,21 +402,17 @@ export async function openGooglePicker() {
         .enableFeature(window.google.picker.Feature.MULTISELECT_ENABLED)
         .setAppId(appId)
         .setOAuthToken(token)
-        .addView(folderView)
         .addView(audioView)
         .setDeveloperKey(apiKey)
-        .setTitle('DITUNE - Pilih Folder Musik atau File Audio')
-        .setCallback(async (data) => {
+        .setTitle('DITUNE - Impor File Audio dari Google Drive')
+        .setCallback((data) => {
           if (data.action === window.google.picker.Action.PICKED) {
             const docs = data[window.google.picker.Response.DOCUMENTS] || [];
-            try {
-              const result = await processPickedDocuments(docs, token);
-              resolve(result);
-            } catch (err) {
-              reject(err);
-            }
+            resolve(processPickedDocuments(docs));
           } else if (data.action === window.google.picker.Action.CANCEL) {
             resolve(null);
+          } else if (window.google.picker.Action?.ERROR && data.action === window.google.picker.Action.ERROR) {
+            reject(new Error('Google Picker mengalami kesalahan saat memuat daftar file.'));
           }
         })
         .build();
@@ -241,95 +425,109 @@ export async function openGooglePicker() {
 }
 
 /**
- * Process picked documents from Google Picker
- * If a folder is picked, queries files inside the folder recursively.
- * If audio files are picked, maps them directly.
+ * Map picked audio documents from Google Picker into track file metadata
  */
-async function processPickedDocuments(docs, token) {
+function processPickedDocuments(docs = []) {
   const resultFiles = [];
-  let selectedFolder = null;
 
   for (const doc of docs) {
-    const isFolder =
-      doc.mimeType === 'application/vnd.google-apps.folder' ||
-      doc.type === 'folder' ||
-      doc[window.google?.picker?.Document?.MIME_TYPE] === 'application/vnd.google-apps.folder';
-
-    if (isFolder) {
-      // Query files inside this folder recursively
-      const folderId = doc.id;
-      const folderName = doc.name || 'Folder Musik';
-      selectedFolder = { id: folderId, name: folderName };
-      const folderFiles = await listAudioFilesFromFolder(folderId, token);
-      resultFiles.push(...folderFiles);
-    } else if (
-      doc.mimeType?.startsWith('audio/') ||
-      doc.mimeType === 'video/mp4' ||
-      doc.mimeType === 'video/webm' ||
-      isAudioExtension(doc.name)
-    ) {
+    if (isAudioMediaItem(doc)) {
       resultFiles.push({
         id: doc.id,
         name: doc.name,
-        mimeType: doc.mimeType || 'audio/mpeg',
+        mimeType: inferAudioMimeType(doc.name, doc.mimeType),
         size: Number(doc.sizeBytes || doc.size || 0),
       });
     }
   }
 
-  return { files: resultFiles, folder: selectedFolder };
+  return { files: resultFiles, folder: null };
 }
 
 /**
- * Query audio files inside a Google Drive folder recursively with pagination
- * @param {string} folderId
- * @param {string} token
- * @param {number} [maxDepth=4]
- * @param {number} [currentDepth=0]
+ * Find the existing "DITUNE Music" folder owned by the app without creating one
+ * @returns {Promise<{id: string, name: string}|null>}
  */
-export async function listAudioFilesFromFolder(folderId, token, maxDepth = 4, currentDepth = 0) {
-  if (currentDepth > maxDepth) return [];
+export async function findDituneFolder() {
+  const query = `name = '${DITUNE_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('files(id,name)')}&pageSize=10`;
 
+  const searchResp = await fetchDriveWithAuth(searchUrl);
+  if (!searchResp.ok) {
+    throw new Error(await parseDriveErrorMessage(searchResp, `Gagal memeriksa folder ${DITUNE_FOLDER_NAME} (${searchResp.status})`));
+  }
+
+  const searchData = await searchResp.json();
+  if (searchData.files && searchData.files.length > 0) {
+    return {
+      id: searchData.files[0].id,
+      name: searchData.files[0].name || DITUNE_FOLDER_NAME,
+    };
+  }
+  return null;
+}
+
+/**
+ * Find or create the dedicated "DITUNE Music" folder owned by the app
+ * @returns {Promise<{id: string, name: string}>}
+ */
+export async function findOrCreateDituneFolder() {
+  const existing = await findDituneFolder();
+  if (existing) {
+    return existing;
+  }
+
+  const createResp = await fetchDriveWithAuth('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+    },
+    body: JSON.stringify({
+      name: DITUNE_FOLDER_NAME,
+      mimeType: 'application/vnd.google-apps.folder',
+    }),
+  });
+
+  if (!createResp.ok) {
+    throw new Error(await parseDriveErrorMessage(createResp, `Gagal membuat folder ${DITUNE_FOLDER_NAME} (${createResp.status})`));
+  }
+
+  const created = await createResp.json();
+  return {
+    id: created.id,
+    name: created.name || DITUNE_FOLDER_NAME,
+  };
+}
+
+/**
+ * List all audio files authorized for this app (DITUNE Music uploads + Picker imports)
+ * @returns {Promise<Array<{id: string, name: string, mimeType: string, size: number, parents: string[]}>>}
+ */
+export async function listAuthorizedAudioFiles() {
   const audioFiles = [];
-  const subfolderIds = [];
   let pageToken = '';
+  const query = "trashed = false and mimeType != 'application/vnd.google-apps.folder'";
 
   do {
-    const query = `'${folderId}' in parents and trashed = false`;
-    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=nextPageToken,files(id,name,mimeType,size)&pageSize=500`;
+    let url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('nextPageToken,files(id,name,mimeType,size,parents)')}&pageSize=500`;
     if (pageToken) {
       url += `&pageToken=${encodeURIComponent(pageToken)}`;
     }
 
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
+    const resp = await fetchDriveWithAuth(url);
     if (!resp.ok) {
-      const errorBody = await resp.json().catch(() => ({}));
-      throw new Error(errorBody.error?.message || `Gagal mengambil daftar file folder (${resp.status})`);
+      throw new Error(await parseDriveErrorMessage(resp, `Gagal menyinkronkan daftar lagu Drive (${resp.status})`));
     }
 
     const data = await resp.json();
-    const files = data.files || [];
-
-    for (const file of files) {
-      if (file.mimeType === 'application/vnd.google-apps.folder') {
-        subfolderIds.push(file.id);
-      } else if (
-        file.mimeType?.startsWith('audio/') ||
-        file.mimeType === 'video/mp4' ||
-        file.mimeType === 'video/webm' ||
-        isAudioExtension(file.name)
-      ) {
+    for (const file of data.files || []) {
+      if (isAudioMediaItem(file)) {
         audioFiles.push({
           id: file.id,
           name: file.name,
-          mimeType: file.mimeType || 'audio/mpeg',
+          mimeType: inferAudioMimeType(file.name, file.mimeType),
           size: Number(file.size || 0),
-          folderId,
+          parents: file.parents || [],
         });
       }
     }
@@ -337,17 +535,137 @@ export async function listAudioFilesFromFolder(folderId, token, maxDepth = 4, cu
     pageToken = data.nextPageToken || '';
   } while (pageToken);
 
-  // Recurse into subfolders
-  for (const subId of subfolderIds) {
-    try {
-      const subFiles = await listAudioFilesFromFolder(subId, token, maxDepth, currentDepth + 1);
-      audioFiles.push(...subFiles);
-    } catch (err) {
-      console.warn(`[GDrive] Subfolder listing failed (${subId}):`, err.message);
-    }
+  return audioFiles;
+}
+
+function uploadBinaryToSessionUri(sessionUri, file, mimeType, onProgress = null) {
+  if (typeof XMLHttpRequest === 'undefined') {
+    return fetch(sessionUri, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': mimeType,
+      },
+      body: file,
+    }).then(async (resp) => {
+      if (!resp.ok) {
+        throw new Error(await parseDriveErrorMessage(resp, `Gagal mengunggah file (${resp.status})`));
+      }
+      if (onProgress) onProgress(100);
+      return resp.json();
+    });
   }
 
-  return audioFiles;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', sessionUri);
+    xhr.setRequestHeader('Content-Type', mimeType);
+
+    if (onProgress) {
+      onProgress(0);
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable && evt.total > 0) {
+          const percent = Math.min(99, Math.round((evt.loaded / evt.total) * 100));
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgress) onProgress(100);
+        try {
+          resolve(JSON.parse(xhr.responseText || '{}'));
+        } catch {
+          reject(new Error('Respons metadata upload Google Drive tidak valid.'));
+        }
+      } else {
+        let errBody = {};
+        try {
+          errBody = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          // keep empty object
+        }
+        reject(new Error(extractDriveErrorFromBody(errBody, `Gagal mengunggah file (${xhr.status})`)));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Koneksi terputus saat mengunggah file ke Google Drive.'));
+    xhr.onabort = () => reject(new Error('Pengunggahan file dibatalkan.'));
+    xhr.send(file);
+  });
+}
+
+/**
+ * Upload an audio File/Blob to Google Drive using Resumable Upload
+ * @param {File} file
+ * @param {string|null} [folderId]
+ * @param {function(number): void} [onProgress]
+ * @returns {Promise<{id: string, name: string, mimeType: string, size: number, parents: string[]}>}
+ */
+export async function uploadAudioToDrive(file, folderId = null, onProgress = null) {
+  const mimeType = inferAudioMimeType(file.name, file.type);
+  const metadata = {
+    name: file.name,
+    mimeType,
+    ...(folderId ? { parents: [folderId] } : {}),
+  };
+
+  const initResp = await fetchDriveWithAuth(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,parents',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': mimeType,
+        'X-Upload-Content-Length': String(file.size || 0),
+      },
+      body: JSON.stringify(metadata),
+    }
+  );
+
+  if (!initResp.ok) {
+    throw new Error(await parseDriveErrorMessage(initResp, `Gagal memulai upload ke Google Drive (${initResp.status})`));
+  }
+
+  const sessionUri = initResp.headers.get('Location');
+  if (!sessionUri) {
+    throw new Error('Header Location sesi upload tidak ditemukan pada respons Google Drive.');
+  }
+
+  const uploaded = await uploadBinaryToSessionUri(sessionUri, file, mimeType, onProgress);
+  if (!uploaded?.id) {
+    throw new Error('Google Drive tidak mengembalikan ID berkas hasil upload.');
+  }
+
+  return {
+    id: uploaded.id,
+    name: uploaded.name || file.name,
+    mimeType: uploaded.mimeType || mimeType,
+    size: Number(uploaded.size || file.size || 0),
+    parents: uploaded.parents || (folderId ? [folderId] : []),
+  };
+}
+
+export function buildUploadDuplicateKey(name, size) {
+  return `${String(name || '').trim().toLowerCase()}::${Number(size || 0)}`;
+}
+
+export function inferAudioMimeType(fileName = '', providedType = '') {
+  if (providedType && providedType !== 'application/octet-stream') {
+    return providedType;
+  }
+  const ext = String(fileName).split('.').pop()?.toLowerCase() || '';
+  return AUDIO_MIME_BY_EXT[ext] || 'audio/mpeg';
+}
+
+export function isAudioMediaItem(item = {}) {
+  return Boolean(
+    item.mimeType?.startsWith('audio/') ||
+    item.mimeType === 'application/ogg' ||
+    item.mimeType === 'video/mp4' ||
+    item.mimeType === 'video/webm' ||
+    isAudioExtension(item.name)
+  );
 }
 
 function isAudioExtension(name = '') {
@@ -363,25 +681,8 @@ function isAudioExtension(name = '') {
  * @returns {Promise<{blob: Blob, mimeType: string}>}
  */
 export async function downloadDriveAudioFile(fileId, onProgress = null, expectedSize = 0) {
-  let token = await getAccessToken(true);
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-
-  let resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  // If unauthorized, retry once with refreshed interactive token
-  if (resp.status === 401) {
-    clearSessionToken();
-    token = await getAccessToken(true);
-    resp = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  }
+  const resp = await fetchDriveWithAuth(url, {}, true);
 
   if (!resp.ok) {
     throw new Error(`Gagal mengunduh audio dari Google Drive (Status: ${resp.status})`);
@@ -391,7 +692,7 @@ export async function downloadDriveAudioFile(fileId, onProgress = null, expected
   const contentLength = headerLength > 0 ? headerLength : Number(expectedSize || 0);
   const contentType = resp.headers.get('content-type') || 'audio/mpeg';
 
-  if (!resp.body || !window.ReadableStream || !onProgress) {
+  if (!resp.body || typeof ReadableStream === 'undefined' || !onProgress) {
     const blob = await resp.blob();
     if (onProgress) onProgress(100);
     return { blob, mimeType: contentType };

@@ -244,4 +244,30 @@ describe('AudioEngine Unit Tests', () => {
     assert.ok(persisted);
     assert.equal(persisted.duration, 180, 'Persisted track duration in IndexedDB should be 180');
   });
+
+  test('stop should reset player state and resume should not play when currentTrack is null', () => {
+    const engine = new AudioEngine();
+    let playCalls = 0;
+    engine.audio.play = () => {
+      playCalls++;
+      return Promise.resolve();
+    };
+
+    // Simulate leftover src after track deletion/reset
+    engine.audio.src = 'blob:stale-url';
+    engine.currentTrack = null;
+    engine.resume();
+    assert.equal(playCalls, 0);
+
+    engine.playlist = [{ id: 't1', title: 'T1' }];
+    engine.currentIndex = 0;
+    engine.currentTrack = engine.playlist[0];
+    engine.audio.src = 'blob:active-url';
+
+    engine.stop();
+    assert.equal(engine.currentTrack, null);
+    assert.equal(engine.currentIndex, -1);
+    assert.equal(engine.playlist.length, 0);
+    assert.equal(engine.audio.src, '');
+  });
 });

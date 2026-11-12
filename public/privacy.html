@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#09090b" />
+  <title>Kebijakan Privasi — DITUNE</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #09090b;
+      color: #e4e4e7;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }
+    .header {
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .brand {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #34d399;
+      text-decoration: none;
+      margin-bottom: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+    }
+    .updated {
+      margin: 8px 0 0;
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+    h2 {
+      margin: 28px 0 10px;
+      font-size: 17px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    p, li {
+      font-size: 14px;
+      color: #d4d4d8;
+    }
+    ul {
+      padding-left: 20px;
+      margin: 8px 0 16px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      color: #34d399;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    a {
+      color: #34d399;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid #27272a;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <a href="/" class="brand">DITUNE</a>
+      <h1>Kebijakan Privasi</h1>
+      <p class="updated">Terakhir diperbarui: 12 November 2026 • Dikelola oleh Dijumper Web</p>
+    </header>
+
+    <section>
+      <p>
+        DITUNE adalah aplikasi web pemutar musik pribadi (Progressive Web App) yang terintegrasi langsung dengan akun Google Drive Anda. Kebijakan Privasi ini menjelaskan bagaimana aplikasi mengakses, menggunakan, dan menyimpan data saat Anda menggunakan DITUNE.
+      </p>
+
+      <h2>1. Arsitektur 100% Client-Side</h2>
+      <p>
+        DITUNE berjalan sepenuhnya di sisi peramban (<em>client-side</em>) pada perangkat Anda. Pengembang tidak mengoperasikan server backend untuk mengumpulkan, menyimpan, memindai, atau mengirimkan berkas audio, daftar pustaka lagu, maupun token otorisasi Google Anda.
+      </p>
+
+      <h2>2. Akses Data Google Drive (Scope <code>drive.file</code>)</h2>
+      <p>
+        DITUNE menggunakan Google Identity Services dan Google Drive API hanya dengan izin minimal <code>https://www.googleapis.com/auth/drive.file</code>. Dengan izin ini:
+      </p>
+      <ul>
+        <li>Aplikasi hanya dapat mengakses folder <code>DITUNE Music</code> beserta berkas audio yang diunggah langsung melalui DITUNE.</li>
+        <li>Aplikasi juga hanya dapat mengakses berkas audio lain yang Anda pilih secara eksplisit melalui dialog resmi Google Picker.</li>
+        <li>DITUNE tidak memiliki izin untuk melihat, mengubah, atau menghapus dokumen maupun berkas pribadi lain di Google Drive Anda di luar lingkup tersebut.</li>
+      </ul>
+
+      <h2>3. Penyimpanan Lokal di Perangkat Anda</h2>
+      <ul>
+        <li><strong>IndexedDB</strong>: Digunakan untuk menyimpan metadata lagu (judul, artis, album, durasi), sampul album, daftar lagu yang disembunyikan, serta cache berkas audio agar dapat diputar secara <em>offline</em>.</li>
+        <li><strong>localStorage / sessionStorage</strong>: Digunakan untuk menyimpan token sesi akses sementara OAuth Google (berlaku sekitar 1 jam) beserta jenis scope aktif agar Anda tidak perlu masuk berulang kali selama sesi masih berlaku.</li>
+      </ul>
+
+      <h2>4. Kepatuhan Kebijakan Data Pengguna Google</h2>
+      <p>
+        Penggunaan dan pemindahan informasi yang diterima dari Google API oleh DITUNE mematuhi
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>,
+        termasuk persyaratan <em>Limited Use</em>. Data Anda tidak digunakan untuk periklanan, tidak dijual, dan tidak dibagikan kepada pihak ketiga mana pun.
+      </p>
+
+      <h2>5. Menghapus Data &amp; Mencabut Izin</h2>
+      <ul>
+        <li>Anda dapat menghapus seluruh cache audio maupun daftar pustaka lokal kapan saja melalui menu <strong>Pengaturan → Kosongkan Perpustakaan</strong> atau membersihkan data situs di peramban.</li>
+        <li>Anda dapat mencabut izin akses Google Drive milik DITUNE kapan saja melalui halaman <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">Izin Akun Google</a>.</li>
+      </ul>
+
+      <h2>6. Kontak</h2>
+      <p>
+        Jika Anda memiliki pertanyaan terkait kebijakan privasi ini, silakan hubungi pengembang di
+        <a href="mailto:novianasproject@gmail.com">novianasproject@gmail.com</a>.
+      </p>
+    </section>
+
+    <footer class="footer">
+      <span>DITUNE • Dijumper Web</span>
+      <div>
+        <a href="/">Kembali ke Aplikasi</a> ·
+        <a href="/terms.html">Ketentuan Layanan</a>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
+

@@ -8,6 +8,11 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Fitur *batch upload* lagu langsung dari perangkat ke folder otomatis `DITUNE Music` di Google Drive melalui *Resumable Upload* (`uploadAudioToDrive`) dengan antrean paralel (maksimal 2 file serentak), indikator progress real-time, deteksi duplikat otomatis (`buildUploadDuplicateKey`), dan cache offline instan per lagu selesai (`persistTrackBlobWithMetadata`).
+- Dukungan *drag-and-drop* berkas audio ke area kerja utama (`#main-workspace` & `#upload-drop-overlay`) beserta pencegahan navigasi browser saat berkas dijatuhkan di luar area utama.
+- Halaman statis **Kebijakan Privasi** (`public/privacy.html`) dan **Ketentuan Layanan** (`public/terms.html`) untuk kelengkapan *Go Publish* Google OAuth, lengkap dengan tautannya di footer modal Pengaturan.
+- Metode `AudioEngine.stop()` untuk menghentikan pemutaran, membatalkan request tertunda, mengosongkan antrean, me-revoke object URL, dan membersihkan `audio.src`.
+- Rangkaian pengujian unit baru di `tests/gdrive.test.js` (22 tes), `tests/sw.test.js` (6 tes), `tests/uiController.test.js` (15 tes), serta tambahan kasus uji di `tests/audioEngine.test.js` (total 70 tes di 6 suite).
 - Fitur penghapusan lagu dari library dan daftar abaikan (*Ignored Tracks*) berbasis IndexedDB lokal tanpa mengubah file fisik di Google Drive (menggunakan scope `drive.readonly`).
 - Tombol menu aksi titik tiga (`•••`) pada setiap baris lagu dengan dropdown: *Hapus Audio dari Cache Offline*, *Hapus dari Library*, dan tautan *Buka di Google Drive*.
 - Dialog modal konfirmasi ringkas sebelum menghapus lagu dari library.
@@ -34,6 +39,11 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Mengubah OAuth scope dari `drive.readonly` menjadi scope non-sensitif `https://www.googleapis.com/auth/drive.file` untuk kesiapan *Go Publish*, disertai penyimpanan `ditune_oauth_scope` guna menginvalidasi otomatis token sesi lama.
+- Memperbarui Google Picker (`openGooglePicker`) menjadi mode impor berkas audio multi-select dengan penelusuran folder (`setIncludeFolders(true)`, `setSelectFolderEnabled(false)`), perluasan filter MIME audio, verifikasi sesi awal, serta penanganan aksi error Picker.
+- Memisahkan `ensureGisLoaded()` dan `ensurePickerLoaded()` (dengan timeout 15 detik pada pemuatan Picker) agar jalur upload dan sinkronisasi tidak menunggu library Picker sebelum memicu popup OAuth.
+- Memperbarui tombol aksi pada *empty state*, header daftar lagu, dan modal Pengaturan (**Upload Lagu**, **Impor Drive**, **Sinkronkan**), serta memperbarui `syncConnectedFolder()` untuk menyinkronkan seluruh file audio berizin `drive.file` (`listAuthorizedAudioFiles`) dan menautkan folder `DITUNE Music` (`findDituneFolder`).
+- Memperbarui tampilan status koneksi di modal Pengaturan untuk membedakan status kredensial/sesi OAuth (`Kredensial Belum Siap`, `Sesi Google Aktif`, `Siap Login`) dan label versi `DITUNE v1.3.0 • Dijumper Web`.
 - Memperbarui tombol "Kosongkan Perpustakaan" agar mempertahankan tautan folder Google Drive (`connected_folder`) dan sesi login, sehingga pengguna dapat langsung menarik kembali lagu-lagu segar via tombol "Sinkronkan Lagu" tanpa harus memilih ulang folder dari awal.
 - Menyesuaikan tampilan antarmuka saat library kosong untuk menampilkan status folder terhubung beserta tombol aksi cepat "Sinkronkan Lagu" dan tombol sekunder "Ganti Folder".
 - Menyempurnakan antarmuka modal *Lagu yang Disembunyikan* dengan menghapus tombol silang `✕` agar murni berstatus panel aksi langsung (*Immediate Management Panel*), serta menjalankan sinkronisasi folder Google Drive otomatis di latar belakang saat tombol **"Selesai"** diklik jika terdapat lagu yang dipulihkan.
@@ -50,6 +60,11 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbarui tag meta PWA `mobile-web-app-capable` pada `index.html` dan menambahkan impor ikon `Radio` pada modul UI.
 
 ### Fixed
+- Menambahkan *single-flight lock* (`pendingTokenPromise`), `error_callback` GIS, validasi token/scope callback, dan guard `currentAccessToken === token` pada `fetchDriveWithAuth()` untuk mencegah tabrakan callback OAuth paralel maupun Promise menggantung saat popup ditutup/diblokir.
+- Menambahkan guard status sibuk lintas operasi (`hasActiveTransferOrSync`, `isPicking`, `isSyncing`, `isBatchUploading`, `isBatchDownloading`, `downloadingTrackIds`) serta guard koneksi `navigator.onLine` pada alur upload, impor Picker, sinkronisasi, unduhan offline, cache, dan reset library.
+- Memserialisasikan pembaruan IndexedDB/UI pasca-upload via `refreshChain`, memperbarui status unduhan batch secara inkremental per lagu, dan melacak timer auto-close (`_fadeTimer`, `_removeTimer`) pada `showProgressToast()` / `removeProgressToast()`.
+- Memperbaiki *Service Worker* (`public/sw.js`, `ditune-shell-v6`) agar caching navigasi HTML hanya menimpa `/index.html` pada rute `/` atau `/index.html`, menambahkan halaman legal ke `STATIC_ASSETS`, dan memperbaiki chaining fallback offline.
+- Menambahkan sanitasi `escapeHtml()`, `encodeURIComponent()`, dan `CSS.escape()` pada judul filter Artis/Album serta atribut/URL ID lagu, serta membersihkan metadata `connected_folder` lama tanpa `scope: 'drive.file'`.
 - Memperbaiki ketidakkonsistenan posisi kolom Album dan merapikan kolom Durasi agar tidak mepet dengan scrollbar menggunakan struktur CSS Grid 4-kolom yang presisi (`grid-cols-[2rem_1fr_26%_7.5rem]`).
 - Memperbaiki alur otentikasi Google Drive saat memutar atau mengunduh lagu pada sesi baru dengan langsung memicu popup interaktif resmi, mencegah penutupan modal mendadak akibat *silent auth*, serta memulihkan tampilan antarmuka baris lagu agar tidak tertahan di status loading 0% saat unduhan batal atau gagal.
 - Memperbaiki penanganan kloning Response body pada Service Worker PWA (`sw.js`) untuk mencegah error `Response body is already used` saat caching navigasi HTML dan menaikkan versi cache menjadi `ditune-shell-v3`.
@@ -65,6 +80,7 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Memperbaiki pendaftaran ikon `Radio` pada objek pembuat ikon Lucide untuk menghilangkan peringatan konsol.
 
 ### Removed
+- Menghapus fungsi `listAudioFilesFromFolder`, `folderView` pada Google Picker, konstanta `DISCOVERY_DOCS`, dan elemen `#connected-folder-badge` yang tidak lagi digunakan di bawah scope `drive.file`.
 - Menghilangkan tombol Pengaturan redundan pada bilah navigasi desktop (hanya dipertahankan pada navigasi mobile).
 - Menghapus seluruh fitur modul generator audio contoh (`demoTracks.js`), tombol "Muat Lagu Contoh" pada sidebar dan library kosong, serta pengujian terkait.
 - Menghapus seluruh form input kredensial kustom (Client ID & API Key) dari modal Pengaturan untuk menyederhanakan pengalaman pengguna murni ke fungsi pemutar musik (*consumer-focused*).

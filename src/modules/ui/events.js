@@ -40,6 +40,7 @@ import {
   MoreVertical,
   RotateCcw,
   EyeOff,
+  Upload,
 } from 'lucide';
 
 import {
@@ -62,13 +63,19 @@ import {
   clearIgnoredTracks,
 } from '../storage/db.js';
 import {
+  DITUNE_FOLDER_NAME,
   hasCredentials,
+  hasActiveSession,
   openGooglePicker,
-  listAudioFilesFromFolder,
+  findDituneFolder,
+  findOrCreateDituneFolder,
+  listAuthorizedAudioFiles,
+  uploadAudioToDrive,
+  buildUploadDuplicateKey,
+  isAudioMediaItem,
+  inferAudioMimeType,
   getAccessToken,
-  initGoogleAuth,
   downloadDriveAudioFile,
-  clearSessionToken,
 } from '../auth/gdrive.js';
 import { formatDuration, parseAudioMetadata } from '../parser/metadata.js';
 import {
@@ -83,6 +90,7 @@ import {
 } from './components.js';
 
 export function refreshLucideIcons() {
+  if (typeof document === 'undefined') return;
   createIcons({
     icons: {
       Disc,
@@ -120,6 +128,7 @@ export function refreshLucideIcons() {
       MoreVertical,
       RotateCcw,
       EyeOff,
+      Upload,
     },
   });
 }
@@ -135,12 +144,17 @@ export class UIController {
     this.isDraggingProgress = false;
     this.previousVolume = 1.0;
     this.isBatchDownloading = false;
+    this.isBatchUploading = false;
+    this.isSyncing = false;
+    this.isPicking = false;
+    this.dragDepth = 0;
     this.downloadingTrackIds = new Set();
     this.deferredInstallPrompt = null;
     this.activeMenuTrackId = null;
     this.confirmActionCallback = null;
     this.hasRestoredIgnoredTracks = false;
     this.connectedFolder = null;
+    this._reloadPromise = Promise.resolve();
 
     this.bindEngineEvents();
     this.bindDOMEvents();
@@ -160,56 +174,69 @@ export class UIController {
     refreshLucideIcons();
   }
 
-  async reloadTracks() {
-    this.allTracks = await getAllTracks();
-    try {
-      this.connectedFolder = await getSetting('connected_folder');
-    } catch (e) {
-      console.warn('Gagal membaca connected_folder saat reload:', e);
-    }
-    try {
-      const blobIds = await getAllAudioBlobIds();
-      const tracksToHeal = [];
+  reloadTracks() {
+    const runReload = async () => {
+      this.allTracks = await getAllTracks();
+      try {
+        const savedFolder = await getSetting('connected_folder');
+        // Clear stale drive.readonly folder metadata from pre-drive.file releases
+        if (savedFolder && savedFolder.scope !== 'drive.file') {
+          await setSetting('connected_folder', null);
+          this.connectedFolder = null;
+        } else {
+          this.connectedFolder = savedFolder;
+        }
+      } catch (e) {
+        console.warn('Gagal membaca connected_folder saat reload:', e);
+      }
+      try {
+        const blobIds = await getAllAudioBlobIds();
+        const tracksToHeal = [];
 
-      for (const track of this.allTracks) {
-        const hasBlob = blobIds.has(track.id);
-        let needSave = false;
+        for (const track of this.allTracks) {
+          const hasBlob = blobIds.has(track.id);
+          let needSave = false;
 
-        if (hasBlob && !track.isCached) {
-          track.isCached = true;
-          if (!track.cachedAt) track.cachedAt = Date.now();
-          needSave = true;
-        } else if (!hasBlob && track.isCached) {
-          track.isCached = false;
-          track.cachedAt = null;
-          needSave = true;
+          if (hasBlob && !track.isCached) {
+            track.isCached = true;
+            if (!track.cachedAt) track.cachedAt = Date.now();
+            needSave = true;
+          } else if (!hasBlob && track.isCached) {
+            track.isCached = false;
+            track.cachedAt = null;
+            needSave = true;
+          }
+
+          // Heal legacy hardcoded album name
+          if (track.album === 'Google Drive') {
+            track.album = 'Unknown Album';
+            needSave = true;
+          }
+
+          // Heal titles with underscores into clean titles with spaces
+          if (track.title && track.title.includes('_')) {
+            track.title = track.title.replace(/_/g, ' ').trim();
+            needSave = true;
+          }
+
+          if (needSave) {
+            tracksToHeal.push(track);
+          }
         }
 
-        // Heal legacy hardcoded album name
-        if (track.album === 'Google Drive') {
-          track.album = 'Unknown Album';
-          needSave = true;
+        if (tracksToHeal.length > 0) {
+          await saveTracks(tracksToHeal);
         }
-
-        // Heal titles with underscores into clean titles with spaces
-        if (track.title && track.title.includes('_')) {
-          track.title = track.title.replace(/_/g, ' ').trim();
-          needSave = true;
-        }
-
-        if (needSave) {
-          tracksToHeal.push(track);
-        }
+      } catch (e) {
+        console.warn('Failed to reconcile tracks with audio_blobs:', e);
       }
 
-      if (tracksToHeal.length > 0) {
-        await saveTracks(tracksToHeal);
-      }
-    } catch (e) {
-      console.warn('Failed to reconcile tracks with audio_blobs:', e);
-    }
+      this.updateOfflineBadge();
+    };
 
-    this.updateOfflineBadge();
+    const next = this._reloadPromise.then(runReload, runReload);
+    this._reloadPromise = next;
+    return next;
   }
 
   updateOfflineBadge() {
@@ -297,10 +324,27 @@ export class UIController {
             <span>Kembali ke semua ${this.filterArtist ? 'Artis' : 'Album'}</span>
           </button>
           <span class="text-xs text-zinc-500">•</span>
-          <span class="text-xs text-emerald-400 font-semibold">${filterTitle}</span>
+          <span class="text-xs text-emerald-400 font-semibold">${escapeHtml(filterTitle)}</span>
         `;
         container.prepend(backBtn);
       }
+    }
+
+    const uploadBtn = document.getElementById('btn-upload-tracks');
+    if (uploadBtn && this.isBatchUploading) {
+      uploadBtn.disabled = true;
+    }
+
+    const importBtn = document.getElementById('btn-import-drive') || document.getElementById('btn-empty-picker');
+    if (importBtn && this.isPicking) {
+      importBtn.disabled = true;
+    }
+
+    const syncBtn = document.getElementById('btn-sync-folder');
+    if (syncBtn && this.isSyncing) {
+      syncBtn.disabled = true;
+      const syncIcon = syncBtn.querySelector('[data-lucide="refresh-cw"]');
+      if (syncIcon) syncIcon.classList.add('animate-spin');
     }
 
     const newScrollEl = container.querySelector('.overflow-y-auto') || container;
@@ -542,16 +586,105 @@ export class UIController {
           return;
         }
 
-        // Sync connected folder button
+        // Upload audio files button
+        if (e.target.closest('#btn-upload-tracks')) {
+          if (this.isBatchUploading) {
+            showToast('Proses upload batch sedang berlangsung. Mohon tunggu hingga selesai.', 'info');
+            return;
+          }
+          if (this.isSyncing || this.isBatchDownloading || this.isPicking || this.downloadingTrackIds.size > 0) {
+            showToast('Mohon tunggu hingga proses saat ini selesai sebelum mengunggah lagu.', 'warning');
+            return;
+          }
+          document.getElementById('upload-audio-input')?.click();
+          return;
+        }
+
+        // Sync connected library button
         if (e.target.closest('#btn-sync-folder')) {
           this.syncConnectedFolder();
           return;
         }
 
-        // Empty picker button
-        if (e.target.closest('#btn-empty-picker')) {
+        // Import from Drive Picker buttons (empty state & track list header)
+        if (e.target.closest('#btn-empty-picker') || e.target.closest('#btn-import-drive')) {
           this.triggerDrivePicker();
           return;
+        }
+      });
+    }
+
+    // Batch Upload Input & Drag-and-Drop on Main Workspace
+    const uploadInput = document.getElementById('upload-audio-input');
+    if (uploadInput) {
+      uploadInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        e.target.value = '';
+        if (files.length > 0) {
+          await this.handleFilesUpload(files);
+        }
+      });
+    }
+
+    const mainWorkspace = document.getElementById('main-workspace');
+    const dropOverlay = document.getElementById('upload-drop-overlay');
+    const hasDraggedFiles = (evt) => Array.from(evt.dataTransfer?.types || []).includes('Files');
+
+    // Prevent browser from opening dropped files if dropped outside main workspace (e.g. sidebar/player bar)
+    document.addEventListener('dragover', (e) => {
+      if (hasDraggedFiles(e)) {
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('drop', (e) => {
+      if (hasDraggedFiles(e) && !e.target.closest('#main-workspace')) {
+        e.preventDefault();
+        this.dragDepth = 0;
+        if (dropOverlay) {
+          dropOverlay.classList.add('hidden');
+          dropOverlay.classList.remove('flex');
+        }
+      }
+    });
+
+    if (mainWorkspace && dropOverlay) {
+      const setOverlayVisible = (visible) => {
+        dropOverlay.classList.toggle('hidden', !visible);
+        dropOverlay.classList.toggle('flex', visible);
+      };
+
+      mainWorkspace.addEventListener('dragenter', (e) => {
+        if (!hasDraggedFiles(e)) return;
+        e.preventDefault();
+        if (this.hasActiveTransferOrSync()) return;
+        this.dragDepth++;
+        setOverlayVisible(true);
+      });
+
+      mainWorkspace.addEventListener('dragover', (e) => {
+        if (!hasDraggedFiles(e)) return;
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = this.hasActiveTransferOrSync() ? 'none' : 'copy';
+        }
+      });
+
+      mainWorkspace.addEventListener('dragleave', (e) => {
+        if (!hasDraggedFiles(e)) return;
+        this.dragDepth = Math.max(0, this.dragDepth - 1);
+        if (this.dragDepth === 0) {
+          setOverlayVisible(false);
+        }
+      });
+
+      mainWorkspace.addEventListener('drop', async (e) => {
+        if (!hasDraggedFiles(e)) return;
+        e.preventDefault();
+        this.dragDepth = 0;
+        setOverlayVisible(false);
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+          await this.handleFilesUpload(files);
         }
       });
     }
@@ -734,7 +867,7 @@ export class UIController {
     });
 
     // Drive Picker Button in Settings
-    document.getElementById('btn-change-folder')?.addEventListener('click', () => {
+    document.getElementById('btn-settings-import-drive')?.addEventListener('click', () => {
       this.closeSettingsModal();
       this.triggerDrivePicker();
     });
@@ -751,30 +884,13 @@ export class UIController {
     document.getElementById('btn-close-settings')?.addEventListener('click', () => this.closeSettingsModal());
 
     // Clear Audio Cache Button
-    document.getElementById('btn-clear-cache')?.addEventListener('click', async () => {
-      if (confirm('Yakin ingin menghapus seluruh audio yang tersimpan di IndexedDB? (Metadata daftar lagu tetap disimpan)')) {
-        await clearAllCache();
-        await this.reloadTracks();
-        await this.updateStorageInfo();
-        this.renderMainContent();
-        showToast('Seluruh audio cache telah dibersihkan.', 'info');
-      }
+    document.getElementById('btn-clear-cache')?.addEventListener('click', () => {
+      this.handleClearCache();
     });
 
     // Reset All Library Button
-    document.getElementById('btn-reset-library')?.addEventListener('click', async () => {
-      if (confirm('Yakin ingin mengosongkan seluruh lagu dan audio cache di DITUNE? (Folder terhubung tetap disimpan)')) {
-        await clearAllData();
-        this.engine.pause();
-        this.engine.playlist = [];
-        this.engine.currentTrack = null;
-        this.resetPlayerBar();
-        await this.reloadTracks();
-        await this.updateStorageInfo();
-        this.updateOfflineBadge();
-        this.renderMainContent();
-        showToast('Perpustakaan lagu telah dikosongkan. Folder tetap terhubung.', 'info');
-      }
+    document.getElementById('btn-reset-library')?.addEventListener('click', () => {
+      this.handleResetLibrary();
     });
 
     // Floating Track Action Menu Click Handling
@@ -967,18 +1083,12 @@ export class UIController {
 
     const badgeStatus = document.getElementById('status-credential-badge');
     if (badgeStatus) {
-      if (hasCredentials()) {
-        badgeStatus.innerHTML = `
-          <span class="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            Terhubung
-          </span>`;
+      if (!hasCredentials()) {
+        badgeStatus.innerHTML = `<span class="text-xs text-amber-400 font-medium">Kredensial Belum Siap</span>`;
+      } else if (hasActiveSession()) {
+        badgeStatus.innerHTML = `<span class="text-xs text-emerald-400 font-medium">Sesi Google Aktif</span>`;
       } else {
-        badgeStatus.innerHTML = `
-          <span class="inline-flex items-center gap-1.5 text-xs text-amber-400 font-medium">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            Kredensial Belum Siap
-          </span>`;
+        badgeStatus.innerHTML = `<span class="text-xs text-zinc-400 font-medium">Siap Login</span>`;
       }
     }
 
@@ -986,12 +1096,8 @@ export class UIController {
     try {
       const folder = await getSetting('connected_folder');
       const folderNameEl = document.getElementById('connected-folder-name');
-      const folderBadgeEl = document.getElementById('connected-folder-badge');
       if (folderNameEl) {
-        folderNameEl.textContent = folder?.name || 'Belum ada folder terhubung';
-      }
-      if (folderBadgeEl) {
-        folderBadgeEl.textContent = folder?.name ? 'Tersimpan' : 'Kosong';
+        folderNameEl.textContent = folder?.name || 'DITUNE Music (Otomatis)';
       }
     } catch (e) {
       console.warn('Gagal membaca info connected_folder:', e);
@@ -1032,20 +1138,21 @@ export class UIController {
 
     this.activeMenuTrackId = trackId;
 
+    const safeTrackId = escapeHtml(track.id);
     menu.innerHTML = `
       ${
         track.isCached
-          ? `<button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="remove-cache" data-id="${track.id}">
+          ? `<button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="remove-cache" data-id="${safeTrackId}">
                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-zinc-400"></i>
                <span>Hapus dari Cache Offline</span>
              </button>`
           : ''
       }
-      <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition cursor-pointer" data-action="delete-track" data-id="${track.id}">
+      <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition cursor-pointer" data-action="delete-track" data-id="${safeTrackId}">
         <i data-lucide="eye-off" class="w-3.5 h-3.5 text-rose-400"></i>
         <span>Hapus dari Library</span>
       </button>
-      <a href="https://drive.google.com/file/d/${track.id}/view" target="_blank" rel="noopener noreferrer" class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer">
+      <a href="https://drive.google.com/file/d/${encodeURIComponent(track.id)}/view" target="_blank" rel="noopener noreferrer" class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer">
         <i data-lucide="external-link" class="w-3.5 h-3.5 text-zinc-400"></i>
         <span>Buka di Google Drive</span>
       </a>
@@ -1079,7 +1186,77 @@ export class UIController {
     this.activeMenuTrackId = null;
   }
 
+  hasActiveTransferOrSync() {
+    return (
+      this.isBatchUploading ||
+      this.isBatchDownloading ||
+      this.isSyncing ||
+      this.isPicking ||
+      this.downloadingTrackIds.size > 0
+    );
+  }
+
+  async handleClearCache(confirmFn = (msg) => (typeof confirm === 'function' ? confirm(msg) : false)) {
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return false;
+    }
+
+    if (!confirmFn('Yakin ingin menghapus seluruh audio yang tersimpan di IndexedDB? (Metadata daftar lagu tetap disimpan)')) {
+      return false;
+    }
+
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return false;
+    }
+
+    await clearAllCache();
+    await this.reloadTracks();
+    await this.updateStorageInfo();
+    this.renderMainContent();
+    showToast('Seluruh audio cache telah dibersihkan.', 'info');
+    return true;
+  }
+
+  async handleResetLibrary(confirmFn = (msg) => (typeof confirm === 'function' ? confirm(msg) : false)) {
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return false;
+    }
+
+    if (!confirmFn('Yakin ingin mengosongkan seluruh lagu dan audio cache di DITUNE? (Folder terhubung tetap disimpan)')) {
+      return false;
+    }
+
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return false;
+    }
+
+    await clearAllData();
+    if (typeof this.engine.stop === 'function') {
+      this.engine.stop();
+    } else {
+      this.engine.pause();
+      this.engine.playlist = [];
+      this.engine.currentTrack = null;
+      this.engine.currentIndex = -1;
+    }
+    this.resetPlayerBar();
+    await this.reloadTracks();
+    await this.updateStorageInfo();
+    this.updateOfflineBadge();
+    this.renderMainContent();
+    showToast('Perpustakaan lagu telah dikosongkan. Folder tetap terhubung.', 'info');
+    return true;
+  }
+
   async handleRemoveTrackCache(trackId) {
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return;
+    }
     const track = this.allTracks.find((t) => t.id === trackId);
     if (!track) return;
 
@@ -1138,6 +1315,11 @@ export class UIController {
   }
 
   async executeDeleteTrack(track) {
+    if (this.hasActiveTransferOrSync()) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return;
+    }
+
     try {
       const isCurrent = this.engine.currentTrack?.id === track.id;
 
@@ -1145,9 +1327,14 @@ export class UIController {
         if (this.engine.playlist.length > 1) {
           this.engine.playNext();
         } else {
-          this.engine.pause();
-          this.engine.playlist = [];
-          this.engine.currentTrack = null;
+          if (typeof this.engine.stop === 'function') {
+            this.engine.stop();
+          } else {
+            this.engine.pause();
+            this.engine.playlist = [];
+            this.engine.currentTrack = null;
+            this.engine.currentIndex = -1;
+          }
           this.resetPlayerBar();
         }
       }
@@ -1181,7 +1368,7 @@ export class UIController {
     const barFill = document.getElementById('progress-bar-fill');
     const thumb = document.getElementById('progress-thumb');
 
-    if (titleEl) titleEl.textContent = 'Tidak ada lagu';
+    if (titleEl) titleEl.textContent = 'Belum ada lagu';
     if (artistEl) artistEl.textContent = 'Pilih lagu untuk memutar';
     if (coverImg) {
       coverImg.src = '';
@@ -1249,7 +1436,7 @@ export class UIController {
           <p class="text-xs font-semibold text-white truncate">${escapeHtml(t.title || t.name)}</p>
           <p class="text-[11px] text-zinc-400 truncate">${escapeHtml(t.artist || 'Unknown Artist')}</p>
         </div>
-        <button class="btn-unignore-track flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-medium transition cursor-pointer" data-id="${t.id}" title="Pulihkan lagu ke sinkronisasi">
+        <button class="btn-unignore-track flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-medium transition cursor-pointer" data-id="${escapeHtml(t.id)}" title="Pulihkan lagu ke sinkronisasi">
           <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
           <span>Pulihkan</span>
         </button>
@@ -1269,7 +1456,8 @@ export class UIController {
     if (folderInfo && folderInfo.id) {
       await setSetting('connected_folder', {
         id: folderInfo.id,
-        name: folderInfo.name || 'Folder Musik',
+        name: folderInfo.name || DITUNE_FOLDER_NAME,
+        scope: 'drive.file',
         connectedAt: Date.now(),
       });
     }
@@ -1331,12 +1519,311 @@ export class UIController {
     return { newCount, existingCount };
   }
 
+  /**
+   * Shared SSOT helper: Parse ID3 metadata & cover, then persist audio Blob and track record to IndexedDB
+   */
+  async persistTrackBlobWithMetadata(trackBase, blob, mimeType) {
+    const fallbackTitle = (trackBase.name || 'Unknown Track')
+      .replace(/\.[a-zA-Z0-9]+$/, '')
+      .replace(/_/g, ' ')
+      .trim();
+
+    const track = {
+      id: trackBase.id,
+      name: trackBase.name,
+      title: (trackBase.title || fallbackTitle).replace(/_/g, ' ').trim(),
+      artist: trackBase.artist || 'Unknown Artist',
+      album: trackBase.album || 'Unknown Album',
+      duration: trackBase.duration || 0,
+      size: blob?.size || trackBase.size || 0,
+      mimeType: mimeType || trackBase.mimeType || inferAudioMimeType(trackBase.name),
+      hasCover: Boolean(trackBase.hasCover),
+    };
+
+    if (blob) {
+      try {
+        const meta = await parseAudioMetadata(blob, track.name);
+        track.title = (meta.title || fallbackTitle).replace(/_/g, ' ').trim();
+        track.artist = meta.artist;
+        track.album = meta.album;
+        if (meta.duration > 0) track.duration = meta.duration;
+
+        if (meta.coverBlob) {
+          await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
+          track.hasCover = true;
+        }
+      } catch (metaErr) {
+        console.warn('Metadata parsing failed:', metaErr);
+      }
+
+      await saveAudioBlob(track.id, blob, track.mimeType);
+      track.isCached = true;
+      track.cachedAt = Date.now();
+      await saveTrack(track);
+    }
+
+    return track;
+  }
+
+  async handleFilesUpload(fileList) {
+    if (!hasCredentials()) {
+      showToast('Kredensial Google belum terkonfigurasi pada sistem aplikasi.', 'warning');
+      this.openSettingsModal();
+      return;
+    }
+
+    if (!navigator.onLine) {
+      showToast('Koneksi internet dibutuhkan untuk mengunggah lagu ke Google Drive.', 'warning');
+      return;
+    }
+
+    if (this.isBatchUploading) {
+      showToast('Proses upload batch sedang berlangsung. Mohon tunggu hingga selesai.', 'info');
+      return;
+    }
+
+    if (this.isSyncing || this.isBatchDownloading || this.isPicking || this.downloadingTrackIds.size > 0) {
+      showToast('Mohon tunggu hingga proses saat ini selesai sebelum mengunggah lagu.', 'warning');
+      return;
+    }
+
+    const audioFiles = Array.from(fileList || []).filter((file) =>
+      isAudioMediaItem({ name: file.name, mimeType: file.type })
+    );
+
+    if (audioFiles.length === 0) {
+      showToast('Tidak ada file audio yang didukung (.mp3, .m4a, .flac, .wav, .ogg, .opus, .aac, .mp4, .webm).', 'warning');
+      return;
+    }
+
+    this.isBatchUploading = true;
+    const uploadBtn = document.getElementById('btn-upload-tracks');
+    if (uploadBtn) uploadBtn.disabled = true;
+
+    try {
+      showToast(`Menyiapkan upload ${audioFiles.length} lagu ke Google Drive...`, 'info');
+      const folder = await findOrCreateDituneFolder();
+
+      await setSetting('connected_folder', {
+        id: folder.id,
+        name: folder.name,
+        scope: 'drive.file',
+        connectedAt: Date.now(),
+      });
+      this.connectedFolder = folder;
+
+      const [remoteFiles, localTracks] = await Promise.all([
+        listAuthorizedAudioFiles(),
+        getAllTracks(),
+      ]);
+
+      const existingFolderFiles = new Map();
+      const remoteById = new Map();
+      for (const rf of remoteFiles) {
+        remoteById.set(rf.id, rf);
+        if (Array.isArray(rf.parents) && rf.parents.includes(folder.id)) {
+          existingFolderFiles.set(buildUploadDuplicateKey(rf.name, rf.size), rf);
+        }
+      }
+
+      const localLibraryByKey = new Map();
+      const existingTrackById = new Map();
+      for (const lt of localTracks) {
+        existingTrackById.set(lt.id, lt);
+        const remoteMatch = remoteById.get(lt.id);
+        const effectiveName = lt.name || remoteMatch?.name || lt.title;
+        const effectiveSize = lt.size || remoteMatch?.size || 0;
+        if (effectiveName) {
+          localLibraryByKey.set(buildUploadDuplicateKey(effectiveName, effectiveSize), lt);
+        }
+      }
+
+      const seenInBatch = new Set();
+      const toUpload = [];
+      const duplicates = [];
+
+      for (const file of audioFiles) {
+        const key = buildUploadDuplicateKey(file.name, file.size);
+        const existingInFolder = existingFolderFiles.get(key);
+        const existingInLibrary = !existingInFolder ? localLibraryByKey.get(key) : null;
+        const existingMatch = existingInFolder || existingInLibrary || null;
+
+        if (existingMatch || seenInBatch.has(key)) {
+          duplicates.push({
+            file,
+            existingMatch,
+            source: existingInFolder ? 'folder' : (existingInLibrary ? 'library' : 'batch'),
+          });
+        } else {
+          seenInBatch.add(key);
+          toUpload.push(file);
+        }
+      }
+
+      // Ensure skipped duplicates are un-ignored (if needed) and cached locally once per ID
+      let cachedDuplicateCount = 0;
+      if (duplicates.length > 0) {
+        const blobIds = await getAllAudioBlobIds();
+        const ignoredSet = new Set((await getIgnoredTracks()).map((t) => t.id));
+        const processedDuplicateIds = new Set();
+
+        for (const { file, existingMatch } of duplicates) {
+          if (!existingMatch || processedDuplicateIds.has(existingMatch.id)) continue;
+          processedDuplicateIds.add(existingMatch.id);
+
+          if (ignoredSet.has(existingMatch.id)) {
+            await unignoreTrack(existingMatch.id);
+          }
+
+          const hasLocalTrack = existingTrackById.has(existingMatch.id);
+          const hasLocalBlob = blobIds.has(existingMatch.id);
+          if (!hasLocalTrack || !hasLocalBlob) {
+            await this.persistTrackBlobWithMetadata(existingMatch, file, inferAudioMimeType(file.name, file.type));
+            blobIds.add(existingMatch.id);
+            existingTrackById.set(existingMatch.id, existingMatch);
+            cachedDuplicateCount++;
+          }
+        }
+
+        await this.reloadTracks();
+        this.renderMainContent();
+        await this.updateStorageInfo();
+      }
+
+      if (toUpload.length === 0) {
+        const suffix = cachedDuplicateCount > 0 ? ` (${cachedDuplicateCount} disimpan ke cache lokal)` : '';
+        const allFromFolder = duplicates.every((d) => d.source === 'folder');
+        const locationLabel = allFromFolder
+          ? `"${folder.name}"`
+          : `pustaka atau "${folder.name}"`;
+        showToast(`Semua ${duplicates.length} lagu sudah ada di ${locationLabel} sehingga dilewati.${suffix}`, 'info');
+        return;
+      }
+
+      const fileProgress = new Array(toUpload.length).fill(0);
+      const activeFiles = new Map();
+      let nextIndex = 0;
+      let uploadedCount = 0;
+      let failedCount = 0;
+      let lastErrorMsg = '';
+      let refreshChain = Promise.resolve();
+
+      const enqueuePostUploadRefresh = () => {
+        refreshChain = refreshChain
+          .then(async () => {
+            await this.reloadTracks();
+            this.renderMainContent();
+            await this.updateStorageInfo();
+          })
+          .catch((err) => {
+            console.warn('Post-upload UI refresh error:', err);
+          });
+        return refreshChain;
+      };
+
+      const updateBatchProgress = () => {
+        const sum = fileProgress.reduce((acc, v) => acc + v, 0);
+        const doneCount = uploadedCount + failedCount;
+        const avgPercent =
+          doneCount === toUpload.length
+            ? 100
+            : Math.min(99, Math.floor(sum / toUpload.length));
+
+        const activeNames = Array.from(activeFiles.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([, name]) => name);
+
+        let label = 'Menyimpan ke library...';
+        if (activeNames.length === 1) {
+          label = activeNames[0];
+        } else if (activeNames.length > 1) {
+          label = `${activeNames[0]} (+${activeNames.length - 1} lainnya)`;
+        } else if (doneCount === toUpload.length) {
+          label = 'Menyelesaikan upload...';
+        }
+
+        showProgressToast('batch-upload', `(${doneCount}/${toUpload.length}) ${label}`, avgPercent, false);
+      };
+
+      updateBatchProgress();
+
+      const workerCount = Math.min(2, toUpload.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (nextIndex < toUpload.length) {
+          const currentIndex = nextIndex++;
+          const file = toUpload[currentIndex];
+          activeFiles.set(currentIndex, file.name);
+          updateBatchProgress();
+
+          try {
+            const driveFile = await uploadAudioToDrive(file, folder.id, (pct) => {
+              fileProgress[currentIndex] = pct;
+              updateBatchProgress();
+            });
+
+            await this.persistTrackBlobWithMetadata(driveFile, file, driveFile.mimeType);
+            uploadedCount++;
+            fileProgress[currentIndex] = 100;
+            activeFiles.delete(currentIndex);
+            updateBatchProgress();
+
+            await enqueuePostUploadRefresh();
+          } catch (err) {
+            failedCount++;
+            lastErrorMsg = err.message;
+            fileProgress[currentIndex] = 100;
+            activeFiles.delete(currentIndex);
+            updateBatchProgress();
+            console.warn(`Gagal mengunggah "${file.name}":`, err);
+          }
+        }
+      });
+
+      await Promise.all(workers);
+      await refreshChain;
+
+      const summaryParts = [`${uploadedCount} lagu diunggah ke "${folder.name}"`];
+      if (duplicates.length > 0) summaryParts.push(`${duplicates.length} duplikat dilewati`);
+      if (failedCount > 0) {
+        summaryParts.push(lastErrorMsg ? `${failedCount} gagal (${lastErrorMsg})` : `${failedCount} gagal`);
+      }
+      showToast(`Selesai! ${summaryParts.join(', ')}.`, failedCount > 0 && uploadedCount === 0 ? 'error' : 'success');
+    } catch (err) {
+      console.error('Batch upload error:', err);
+      showToast(`Gagal mengunggah lagu: ${err.message}`, 'error');
+    } finally {
+      this.isBatchUploading = false;
+      removeProgressToast('batch-upload');
+      const currentUploadBtn = document.getElementById('btn-upload-tracks');
+      if (currentUploadBtn) currentUploadBtn.disabled = false;
+    }
+  }
+
   async triggerDrivePicker() {
     if (!hasCredentials()) {
       showToast('Kredensial Google belum terkonfigurasi pada sistem aplikasi.', 'warning');
       this.openSettingsModal();
       return;
     }
+
+    if (!navigator.onLine) {
+      showToast('Koneksi internet dibutuhkan untuk mengimpor lagu dari Google Drive.', 'warning');
+      return;
+    }
+
+    if (this.isPicking) {
+      showToast('Google Picker sedang dibuka...', 'info');
+      return;
+    }
+
+    if (this.isBatchUploading || this.isSyncing || this.isBatchDownloading || this.downloadingTrackIds.size > 0) {
+      showToast('Mohon tunggu hingga proses upload, unduhan, atau sinkronisasi selesai.', 'warning');
+      return;
+    }
+
+    this.isPicking = true;
+    const importBtn = document.getElementById('btn-import-drive') || document.getElementById('btn-empty-picker');
+    if (importBtn) importBtn.disabled = true;
 
     try {
       showToast('Membuka Google Picker...', 'info');
@@ -1346,7 +1833,6 @@ export class UIController {
         return;
       }
 
-      // Handle both { files, folder } and direct array (fallback safety)
       const pickedFiles = Array.isArray(pickerResult) ? pickerResult : (pickerResult.files || []);
       const pickedFolder = pickerResult.folder || null;
 
@@ -1355,15 +1841,17 @@ export class UIController {
         return;
       }
 
-      showToast(`Menyinkronkan ${pickedFiles.length} file dengan library DITUNE...`, 'info');
+      showToast(`Mengimpor ${pickedFiles.length} file ke library DITUNE...`, 'info');
       const { newCount, existingCount } = await this.mergeAndSaveDriveFiles(pickedFiles, pickedFolder);
 
-      if (existingCount > 0 && newCount > 0) {
-        showToast(`${newCount} lagu baru ditambahkan, ${existingCount} lagu diperbarui & cache offline tetap utuh!`, 'success');
+      if (newCount === 0 && existingCount === 0) {
+        showToast('File yang dipilih berada di Daftar Abaikan. Pulihkan melalui Pengaturan jika ingin menampilkannya.', 'info');
+      } else if (existingCount > 0 && newCount > 0) {
+        showToast(`${newCount} lagu baru diimpor, ${existingCount} lagu diperbarui & cache offline tetap utuh!`, 'success');
       } else if (existingCount > 0) {
         showToast(`${existingCount} lagu diverifikasi, seluruh cache & metadata offline tetap utuh!`, 'success');
       } else {
-        showToast(`${newCount} lagu berhasil dimasukkan ke library!`, 'success');
+        showToast(`${newCount} lagu berhasil diimpor dari Google Drive!`, 'success');
       }
     } catch (err) {
       console.error('Picker error:', err);
@@ -1371,8 +1859,12 @@ export class UIController {
         showToast('Kredensial Google belum lengkap. Silakan atur di Pengaturan.', 'warning');
         this.openSettingsModal();
       } else {
-        showToast(`Gagal memilih file: ${err.message}`, 'error');
+        showToast(`Gagal mengimpor file: ${err.message}`, 'error');
       }
+    } finally {
+      this.isPicking = false;
+      const currentImportBtn = document.getElementById('btn-import-drive') || document.getElementById('btn-empty-picker');
+      if (currentImportBtn) currentImportBtn.disabled = false;
     }
   }
 
@@ -1383,13 +1875,32 @@ export class UIController {
       return;
     }
 
-    const folder = await getSetting('connected_folder');
-    if (!folder || !folder.id) {
-      showToast('Belum ada folder yang terhubung. Silakan pilih folder musik terlebih dahulu.', 'warning');
-      this.triggerDrivePicker();
+    if (!navigator.onLine) {
+      showToast('Koneksi internet dibutuhkan untuk menyinkronkan lagu dari Google Drive.', 'warning');
       return;
     }
 
+    if (this.isBatchUploading) {
+      showToast('Proses upload batch sedang berlangsung. Mohon tunggu hingga selesai.', 'info');
+      return;
+    }
+
+    if (this.isBatchDownloading || this.downloadingTrackIds.size > 0) {
+      showToast('Proses unduhan offline sedang berlangsung. Mohon tunggu hingga selesai.', 'info');
+      return;
+    }
+
+    if (this.isPicking) {
+      showToast('Google Picker sedang dibuka. Mohon selesaikan impor terlebih dahulu.', 'warning');
+      return;
+    }
+
+    if (this.isSyncing) {
+      showToast('Sinkronisasi sedang berlangsung...', 'info');
+      return;
+    }
+
+    this.isSyncing = true;
     const syncBtn = document.getElementById('btn-sync-folder');
     const syncIcon = syncBtn?.querySelector('[data-lucide="refresh-cw"]');
 
@@ -1397,36 +1908,60 @@ export class UIController {
       if (syncIcon) syncIcon.classList.add('animate-spin');
       if (syncBtn) syncBtn.disabled = true;
 
-      showToast(`Memeriksa lagu baru di folder "${folder.name}"...`, 'info');
+      showToast('Menyinkronkan lagu dari Google Drive...', 'info');
 
-      await initGoogleAuth();
-      const token = await getAccessToken(true);
+      await getAccessToken(true);
 
-      const remoteFiles = await listAudioFilesFromFolder(folder.id, token);
+      const [remoteFiles, dituneFolder] = await Promise.all([
+        listAuthorizedAudioFiles(),
+        findDituneFolder(),
+      ]);
+
+      const targetFolder = dituneFolder && dituneFolder.id
+        ? {
+            id: dituneFolder.id,
+            name: dituneFolder.name || DITUNE_FOLDER_NAME,
+            scope: 'drive.file',
+            connectedAt: Date.now(),
+          }
+        : null;
+
+      await setSetting('connected_folder', targetFolder);
+      this.connectedFolder = targetFolder;
 
       if (!remoteFiles || remoteFiles.length === 0) {
-        showToast(`Tidak ditemukan file audio di folder "${folder.name}".`, 'info');
+        this.renderMainContent();
+        showToast(
+          targetFolder
+            ? `Folder "${targetFolder.name}" terhubung, belum ada lagu di dalamnya.`
+            : 'Belum ada lagu yang diunggah atau diimpor di Google Drive.',
+          'info'
+        );
         return;
       }
 
-      const { newCount, existingCount } = await this.mergeAndSaveDriveFiles(remoteFiles, folder);
+      const { newCount, existingCount } = await this.mergeAndSaveDriveFiles(remoteFiles, targetFolder);
 
       if (newCount > 0) {
         showToast(`Sinkronisasi selesai! ${newCount} lagu baru ditambahkan (${existingCount} lagu sinkron).`, 'success');
       } else {
-        showToast(`Pustaka musik sudah mutakhir (${existingCount} lagu di "${folder.name}").`, 'info');
+        showToast(`Pustaka musik sudah mutakhir (${existingCount} lagu sinkron).`, 'info');
       }
     } catch (err) {
-      console.error('Sync folder error:', err);
-      showToast(`Gagal menyinkronkan folder: ${err.message}`, 'error');
+      console.error('Sync library error:', err);
+      showToast(`Gagal menyinkronkan lagu: ${err.message}`, 'error');
     } finally {
-      if (syncIcon) syncIcon.classList.remove('animate-spin');
-      if (syncBtn) syncBtn.disabled = false;
+      this.isSyncing = false;
+      const currentSyncBtn = document.getElementById('btn-sync-folder');
+      const currentSyncIcon = currentSyncBtn?.querySelector('[data-lucide="refresh-cw"]');
+      if (currentSyncIcon) currentSyncIcon.classList.remove('animate-spin');
+      if (currentSyncBtn) currentSyncBtn.disabled = false;
     }
   }
 
   updateTrackDownloadUI(trackId, percent) {
-    const row = document.querySelector(`.track-row[data-id="${trackId}"]`);
+    const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(trackId) : trackId;
+    const row = document.querySelector(`.track-row[data-id="${escapedId}"]`);
     if (!row) return;
 
     const cacheStatus = row.querySelector('.track-cache-status');
@@ -1442,7 +1977,7 @@ export class UIController {
           <span>${percent}%</span>
         </span>
         <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${durationText}</span>
-        <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${trackId}" title="Opsi Lagu">
+        <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${escapeHtml(trackId)}" title="Opsi Lagu">
           <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
         </button>
       `;
@@ -1456,6 +1991,16 @@ export class UIController {
 
     if (track.isCached) {
       showToast(`"${track.title}" sudah tersimpan di cache offline.`, 'info');
+      return;
+    }
+
+    if (!navigator.onLine) {
+      showToast('Koneksi internet dibutuhkan untuk mengunduh lagu.', 'warning');
+      return;
+    }
+
+    if (this.isBatchDownloading || this.isBatchUploading || this.isSyncing || this.isPicking) {
+      showToast('Mohon tunggu hingga proses saat ini selesai sebelum mengunduh lagu.', 'warning');
       return;
     }
 
@@ -1476,36 +2021,12 @@ export class UIController {
         track.size
       );
 
-      const blob = result.blob;
-      const mimeType = result.mimeType;
-
-      // Parse metadata & cover if available
-      try {
-        const meta = await parseAudioMetadata(blob, track.name);
-        track.title = meta.title;
-        track.artist = meta.artist;
-        track.album = meta.album;
-        if (meta.duration > 0) track.duration = meta.duration;
-
-        if (meta.coverBlob) {
-          await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
-          track.hasCover = true;
-        }
-      } catch (metaErr) {
-        console.warn('Metadata parsing failed:', metaErr);
-      }
-
-      if (blob) {
-        await saveAudioBlob(track.id, blob, mimeType);
-        track.isCached = true;
-        track.cachedAt = Date.now();
-        await saveTrack(track);
-
+      if (result.blob) {
+        const saved = await this.persistTrackBlobWithMetadata(track, result.blob, result.mimeType);
         await this.reloadTracks();
         await this.updateStorageInfo();
         this.renderMainContent();
-
-        showToast(`"${track.title}" berhasil di-cache untuk offline!`, 'success');
+        showToast(`"${saved.title}" berhasil di-cache untuk offline!`, 'success');
       }
     } catch (err) {
       console.error('Download single track error:', err);
@@ -1522,9 +2043,19 @@ export class UIController {
       return;
     }
 
+    if (this.isBatchUploading || this.isSyncing || this.isPicking || this.downloadingTrackIds.size > 0) {
+      showToast('Mohon tunggu hingga proses saat ini selesai.', 'warning');
+      return;
+    }
+
     const uncached = this.allTracks.filter((t) => !t.isCached);
     if (uncached.length === 0) {
       showToast('Semua lagu dalam library sudah di-cache offline!', 'info');
+      return;
+    }
+
+    if (!navigator.onLine) {
+      showToast('Koneksi internet dibutuhkan untuk mengunduh lagu.', 'warning');
       return;
     }
 
@@ -1553,7 +2084,7 @@ export class UIController {
         }
 
         this.updateTrackDownloadUI(track.id, 0);
-        showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, 0);
+        showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, 0, false);
 
         try {
           if (!navigator.onLine) {
@@ -1573,33 +2104,16 @@ export class UIController {
                 `;
               }
               this.updateTrackDownloadUI(track.id, percent);
-              showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, percent);
+              showProgressToast('batch-download', `(${completed + 1}/${uncached.length}) ${track.title}`, percent, false);
             },
             track.size
           );
-          const blob = result.blob;
-          const mimeType = result.mimeType;
 
-          try {
-            const meta = await parseAudioMetadata(blob, track.name);
-            track.title = meta.title;
-            track.artist = meta.artist;
-            track.album = meta.album;
-            if (meta.duration > 0) track.duration = meta.duration;
-
-            if (meta.coverBlob) {
-              await saveCover(track.id, meta.coverBlob, meta.coverBlob.type);
-              track.hasCover = true;
-            }
-          } catch (_) {}
-
-          if (blob) {
-            await saveAudioBlob(track.id, blob, mimeType);
-            track.isCached = true;
-            track.cachedAt = Date.now();
-            await saveTrack(track);
-
+          if (result.blob) {
+            await this.persistTrackBlobWithMetadata(track, result.blob, result.mimeType);
             completed++;
+            await this.reloadTracks();
+            this.renderMainContent();
             await this.updateStorageInfo();
           }
         } catch (err) {
@@ -1610,7 +2124,8 @@ export class UIController {
       await this.reloadTracks();
       this.renderMainContent();
       await this.updateStorageInfo();
-      showToast(`Selesai! ${completed} dari ${uncached.length} lagu berhasil disimpan offline.`, 'success');
+      const summaryType = completed === 0 ? 'error' : (completed < uncached.length ? 'warning' : 'success');
+      showToast(`Selesai! ${completed} dari ${uncached.length} lagu berhasil disimpan offline.`, summaryType);
     } finally {
       this.isBatchDownloading = false;
       removeProgressToast('batch-download');
