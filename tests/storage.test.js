@@ -25,6 +25,10 @@ import {
   ignoreTrack,
   unignoreTrack,
   clearIgnoredTracks,
+  getAllPlaylists,
+  getPlaylist,
+  savePlaylist,
+  deletePlaylist,
 } from '../src/modules/storage/db.js';
 
 describe('IndexedDB Storage Engine', () => {
@@ -38,6 +42,7 @@ describe('IndexedDB Storage Engine', () => {
     assert.ok(db.objectStoreNames.contains('audio_blobs'));
     assert.ok(db.objectStoreNames.contains('covers'));
     assert.ok(db.objectStoreNames.contains('settings'));
+    assert.ok(db.objectStoreNames.contains('playlists'));
   });
 
   test('should save and retrieve tracks', async () => {
@@ -313,5 +318,62 @@ describe('IndexedDB Storage Engine', () => {
     };
     await setSetting('recovered_after_invalid_state', 42);
     assert.equal(await getSetting('recovered_after_invalid_state'), 42);
+  });
+
+  test('should save, retrieve, and delete playlists', async () => {
+    const pl = {
+      id: 'pl-1',
+      name: 'Road Trip',
+      trackIds: ['t-a', 't-b'],
+      createdAt: 1000,
+      updatedAt: 1000,
+    };
+
+    await savePlaylist(pl);
+    const fetched = await getPlaylist('pl-1');
+    assert.equal(fetched.name, 'Road Trip');
+    assert.deepStrictEqual(fetched.trackIds, ['t-a', 't-b']);
+
+    const all = await getAllPlaylists();
+    assert.equal(all.length, 1);
+
+    await deletePlaylist('pl-1');
+    const afterDelete = await getAllPlaylists();
+    assert.equal(afterDelete.length, 0);
+    assert.equal(await getPlaylist('pl-1'), null);
+  });
+
+  test('should persist playlist trackIds order and update via savePlaylist', async () => {
+    const pl = {
+      id: 'pl-order',
+      name: 'Ordered',
+      trackIds: ['z', 'a', 'm', 'b'],
+      createdAt: 2000,
+      updatedAt: 2000,
+    };
+    await savePlaylist(pl);
+
+    const fetched = await getPlaylist('pl-order');
+    assert.deepStrictEqual(fetched.trackIds, ['z', 'a', 'm', 'b']);
+
+    // Update: add a track and change name
+    fetched.trackIds.push('c');
+    fetched.name = 'Reordered';
+    fetched.updatedAt = 3000;
+    await savePlaylist(fetched);
+
+    const updated = await getPlaylist('pl-order');
+    assert.equal(updated.name, 'Reordered');
+    assert.deepStrictEqual(updated.trackIds, ['z', 'a', 'm', 'b', 'c']);
+    assert.equal(updated.updatedAt, 3000);
+  });
+
+  test('clearAllData should also clear playlists', async () => {
+    await savePlaylist({ id: 'pl-x', name: 'X', trackIds: [], createdAt: 1, updatedAt: 1 });
+    await savePlaylist({ id: 'pl-y', name: 'Y', trackIds: ['t1'], createdAt: 2, updatedAt: 2 });
+    assert.equal((await getAllPlaylists()).length, 2);
+
+    await clearAllData();
+    assert.equal((await getAllPlaylists()).length, 0);
   });
 });

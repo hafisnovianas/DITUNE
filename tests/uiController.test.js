@@ -12,6 +12,9 @@ import {
   setSetting,
   ignoreTrack,
   getIgnoredTracks,
+  savePlaylist,
+  getAllPlaylists,
+  deletePlaylist,
 } from '../src/modules/storage/db.js';
 import { SCOPES, clearSessionToken } from '../src/modules/auth/gdrive.js';
 import { showProgressToast, removeProgressToast } from '../src/modules/ui/components.js';
@@ -87,6 +90,7 @@ function createMockElement(id = '', onRemove = null) {
     click() {
       this._clicked = (this._clicked || 0) + 1;
     },
+    focus() {},
     remove() {
       if (onRemove) onRemove(el);
     },
@@ -956,5 +960,154 @@ describe('UIController (drive.file batch upload, sync & concurrency guards)', ()
 
     await new Promise((r) => setTimeout(r, 340));
     assert.ok(globalThis.document.getElementById('toast-batch-upload'));
+  });
+
+  test('loadPlaylists should populate this.playlists from IndexedDB', async () => {
+    const controller = new UIController(createMockAudioEngine());
+    assert.deepEqual(controller.playlists, []);
+
+    await savePlaylist({ id: 'pl-1', name: 'Road Trip', trackIds: ['a', 'b'], createdAt: 1000, updatedAt: 2000 });
+    await savePlaylist({ id: 'pl-2', name: 'Chill', trackIds: [], createdAt: 1000, updatedAt: 3000 });
+    await controller.loadPlaylists();
+
+    assert.equal(controller.playlists.length, 2);
+    const names = controller.playlists.map((p) => p.name).sort();
+    assert.deepEqual(names, ['Chill', 'Road Trip']);
+  });
+
+  test('addTrackToPlaylist should append trackId, prevent duplicates, and update timestamp', async () => {
+    const controller = new UIController(createMockAudioEngine());
+    await saveTrack({ id: 't1', name: 'song.mp3', title: 'Song One' });
+    await saveTrack({ id: 't2', name: 'song2.mp3', title: 'Song Two' });
+    await controller.reloadTracks();
+
+    const pl = { id: 'pl-add', name: 'Test', trackIds: [], createdAt: 1000, updatedAt: 1000 };
+    await savePlaylist(pl);
+    await controller.loadPlaylists();
+
+    await controller.addTrackToPlaylist('pl-add', 't1');
+    const after1 = controller.playlists.find((p) => p.id === 'pl-add');
+    assert.deepEqual(after1.trackIds, ['t1']);
+    assert.ok(after1.updatedAt > 1000);
+
+    // Duplicate prevention
+    capturedToasts.length = 0;
+    await controller.addTrackToPlaylist('pl-add', 't1');
+    assert.deepEqual(after1.trackIds, ['t1']); // Still only one
+    assert.ok(capturedToasts.some((t) => t.includes('sudah ada')));
+
+    // Add second track
+    await controller.addTrackToPlaylist('pl-add', 't2');
+    const after2 = controller.playlists.find((p) => p.id === 'pl-add');
+    assert.deepEqual(after2.trackIds, ['t1', 't2']);
+  });
+
+  test('removeTrackFromPlaylist should remove trackId and persist', async () => {
+    const controller = new UIController(createMockAudioEngine());
+    await saveTrack({ id: 't1', name: 'a.mp3', title: 'A' });
+    await saveTrack({ id: 't2', name: 'b.mp3', title: 'B' });
+    await controller.reloadTracks();
+
+    await savePlaylist({ id: 'pl-rm', name: 'Mix', trackIds: ['t1', 't2'], createdAt: 1000, updatedAt: 1000 });
+    await controller.loadPlaylists();
+
+    await controller.removeTrackFromPlaylist('pl-rm', 't1');
+    const pl = controller.playlists.find((p) => p.id === 'pl-rm');
+    assert.deepEqual(pl.trackIds, ['t2']);
+
+    // Verify persistence
+    const fromDb = await getAllPlaylists();
+    const dbPl = fromDb.find((p) => p.id === 'pl-rm');
+    assert.deepEqual(dbPl.trackIds, ['t2']);
+  });
+
+  test('getFilteredTracks should return playlist tracks in order when activeTab is playlist', async () => {
+    const controller = new UIController(createMockAudioEngine());
+    await saveTrack({ id: 'a', name: 'a.mp3', title: 'Alpha', artist: 'Art' });
+    await saveTrack({ id: 'b', name: 'b.mp3', title: 'Beta', artist: 'Art' });
+    await saveTrack({ id: 'c', name: 'c.mp3', title: 'Gamma', artist: 'Other' });
+    await controller.reloadTracks();
+
+    await savePlaylist({ id: 'pl-filt', name: 'Ordered', trackIds: ['c', 'a'], createdAt: 1000, updatedAt: 1000 });
+    await controller.loadPlaylists();
+
+    controller.activeTab = 'playlist';
+    controller.activePlaylistId = 'pl-filt';
+
+    const filtered = controller.getFilteredTracks();
+    assert.equal(filtered.length, 2);
+    assert.equal(filtered[0].id, 'c'); // Order matches trackIds
+    assert.equal(filtered[1].id, 'a');
+
+    // Search within playlist
+    controller.searchQuery = 'alpha';
+    const searched = controller.getFilteredTracks();
+    assert.equal(searched.length, 1);
+    assert.equal(searched[0].id, 'a');
+    controller.searchQuery = '';
+  });
+
+  test('promptDeletePlaylist should remove playlist and reset tab to all', async () => {
+    const confirmModal = createMockElement('confirm-modal');
+    confirmModal.classList.add('hidden');
+    const titleEl = createMockElement('confirm-modal-title');
+    const descEl = createMockElement('confirm-modal-desc');
+    const btnAction = createMockElement('btn-confirm-action');
+    mockElements.set('confirm-modal', confirmModal);
+    mockElements.set('confirm-modal-title', titleEl);
+    mockElements.set('confirm-modal-desc', descEl);
+    mockElements.set('btn-confirm-action', btnAction);
+
+    const controller = new UIController(createMockAudioEngine());
+    await savePlaylist({ id: 'pl-del', name: 'Doomed', trackIds: ['x'], createdAt: 1000, updatedAt: 1000 });
+    await controller.loadPlaylists();
+    assert.equal(controller.playlists.length, 1);
+
+    controller.activeTab = 'playlist';
+    controller.activePlaylistId = 'pl-del';
+
+    controller.promptDeletePlaylist('pl-del');
+    assert.ok(!confirmModal.classList.contains('hidden'));
+
+    // Simulate clicking confirm
+    await controller.confirmActionCallback();
+    assert.equal(controller.playlists.length, 0);
+    assert.equal(controller.activePlaylistId, null);
+    assert.equal(controller.activeTab, 'all');
+    assert.equal((await getAllPlaylists()).length, 0);
+  });
+
+  test('startInlinePlaylistCreate should save playlist on Enter and cancel on Escape', async () => {
+    const plContainer = createMockElement('playlist-list-container');
+    const prependedElements = [];
+    plContainer.prepend = (el) => { prependedElements.push(el); };
+    mockElements.set('playlist-list-container', plContainer);
+
+    const controller = new UIController(createMockAudioEngine());
+
+    controller.startInlinePlaylistCreate();
+    assert.equal(controller.isCreatingPlaylist, true);
+    assert.equal(prependedElements.length, 1);
+
+    const input = prependedElements[0];
+
+    // Escape cancels
+    await input.dispatchEvent({ type: 'keydown', key: 'Escape' });
+    assert.equal(controller.isCreatingPlaylist, false);
+
+    // Start again, this time Enter with a name
+    prependedElements.length = 0;
+    controller.startInlinePlaylistCreate();
+    const input2 = prependedElements[0];
+    input2.value = 'My Playlist';
+    await input2.dispatchEvent({ type: 'keydown', key: 'Enter' });
+    assert.equal(controller.isCreatingPlaylist, false);
+
+    // Playlist should be saved
+    const all = await getAllPlaylists();
+    assert.equal(all.length, 1);
+    assert.equal(all[0].name, 'My Playlist');
+    assert.ok(typeof all[0].id === 'string' && all[0].id.length > 0);
+    assert.deepEqual(all[0].trackIds, []);
   });
 });

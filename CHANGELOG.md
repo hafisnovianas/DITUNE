@@ -8,6 +8,9 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 ## [Unreleased]
 
 ### Added
+- Fitur **Playlist Kustom** berbasis IndexedDB lokal: membuat playlist baru lewat input *inline* di sidebar (`+`), menampilkan daftar playlist di sidebar desktop (`renderSidebarPlaylists`), serta halaman detail playlist (`renderPlaylistView`) dengan tombol **Putar Semua** yang mengganti antrean aktif (`engine.setPlaylist`) sehingga *shuffle* dan *repeat* berjalan dalam lingkup playlist.
+- Dukungan pengelolaan playlist lengkap pada kontroler UI: sub-dropdown *Tambah ke Playlist* di menu `⋮` baris lagu (dengan pencegahan duplikat), aksi *Hapus dari Playlist*, serta menu opsi playlist untuk mengubah nama (*Ubah Nama*) dan menghapus playlist (*Hapus Playlist*).
+- Fungsi CRUD playlist di `src/modules/storage/db.js` (`getAllPlaylists`, `getPlaylist`, `savePlaylist`, `deletePlaylist`) beserta 9 unit test baru di `tests/storage.test.js` (3 tes) dan `tests/uiController.test.js` (6 tes), sehingga total pengujian menjadi 80 tes di 6 suite.
 - Fitur *batch upload* lagu langsung dari perangkat ke folder otomatis `DITUNE Music` di Google Drive melalui *Resumable Upload* (`uploadAudioToDrive`) dengan antrean paralel (maksimal 2 file serentak), indikator progress real-time, deteksi duplikat otomatis (`buildUploadDuplicateKey`), dan cache offline instan per lagu selesai (`persistTrackBlobWithMetadata`).
 - Dukungan *drag-and-drop* berkas audio ke area kerja utama (`#main-workspace` & `#upload-drop-overlay`) beserta pencegahan navigasi browser saat berkas dijatuhkan di luar area utama.
 - Halaman statis **Kebijakan Privasi** (`public/privacy.html`) dan **Ketentuan Layanan** (`public/terms.html`) untuk kelengkapan *Go Publish* Google OAuth, lengkap dengan tautannya di footer modal Pengaturan.
@@ -39,6 +42,8 @@ dan proyek ini mematuhi prinsip [Semantic Versioning](https://semver.org/lang/id
 - Rangkaian pengujian unit otomatis (22 tes) mencakup modul storage, audio engine, parser metadata, dan demo synthesizer.
 
 ### Changed
+- Menaikkan versi skema IndexedDB (`DB_VERSION`) dari `1` ke `2` untuk menambahkan object store `playlists` secara aman saat migrasi serta mengosongkannya saat `clearAllData()` dan `handleResetLibrary()` dijalankan.
+- Mengekstrak helper internal `buildTrackRow()` di `src/modules/ui/components.js` agar tampilan daftar lagu utama dan detail playlist berbagi struktur baris yang konsisten.
 - Mengubah OAuth scope dari `drive.readonly` menjadi scope non-sensitif `https://www.googleapis.com/auth/drive.file` untuk kesiapan *Go Publish*, disertai penyimpanan `ditune_oauth_scope` guna menginvalidasi otomatis token sesi lama.
 - Memperbarui Google Picker (`openGooglePicker`) menjadi mode impor berkas audio multi-select dengan penelusuran folder (`setIncludeFolders(true)`, `setSelectFolderEnabled(false)`), perluasan filter MIME audio, verifikasi sesi awal, serta penanganan aksi error Picker.
 - Memisahkan `ensureGisLoaded()` dan `ensurePickerLoaded()` (dengan timeout 15 detik pada pemuatan Picker) agar jalur upload dan sinkronisasi tidak menunggu library Picker sebelum memicu popup OAuth.

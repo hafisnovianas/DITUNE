@@ -41,6 +41,12 @@ import {
   RotateCcw,
   EyeOff,
   Upload,
+  Plus,
+  ListMusic,
+  ArrowLeft,
+  Pencil,
+  ChevronRight,
+  ListX,
 } from 'lucide';
 
 import {
@@ -61,6 +67,10 @@ import {
   ignoreTrack,
   unignoreTrack,
   clearIgnoredTracks,
+  getAllPlaylists,
+  getPlaylist,
+  savePlaylist,
+  deletePlaylist,
 } from '../storage/db.js';
 import {
   DITUNE_FOLDER_NAME,
@@ -82,6 +92,8 @@ import {
   renderTrackList,
   renderArtistsView,
   renderAlbumsView,
+  renderSidebarPlaylists,
+  renderPlaylistView,
   showToast,
   showProgressToast,
   removeProgressToast,
@@ -129,6 +141,12 @@ export function refreshLucideIcons() {
       RotateCcw,
       EyeOff,
       Upload,
+      Plus,
+      ListMusic,
+      ArrowLeft,
+      Pencil,
+      ChevronRight,
+      ListX,
     },
   });
 }
@@ -154,6 +172,9 @@ export class UIController {
     this.confirmActionCallback = null;
     this.hasRestoredIgnoredTracks = false;
     this.connectedFolder = null;
+    this.playlists = [];
+    this.activePlaylistId = null;
+    this.isCreatingPlaylist = false;
     this._reloadPromise = Promise.resolve();
 
     this.bindEngineEvents();
@@ -165,6 +186,7 @@ export class UIController {
   async init() {
     await this.reloadTracks();
     await this.updateStorageInfo();
+    await this.loadPlaylists();
 
     // Check online status
     this.updateNetworkStatus(navigator.onLine);
@@ -273,6 +295,22 @@ export class UIController {
   getFilteredTracks() {
     let list = [...this.allTracks];
 
+    if (this.activeTab === 'playlist' && this.activePlaylistId) {
+      const pl = this.playlists.find((p) => p.id === this.activePlaylistId);
+      if (pl) {
+        list = pl.trackIds.map((id) => list.find((t) => t.id === id)).filter(Boolean);
+        if (this.searchQuery.trim()) {
+          const q = this.searchQuery.toLowerCase();
+          list = list.filter((t) =>
+            (t.title || t.name || '').toLowerCase().includes(q) ||
+            (t.artist || '').toLowerCase().includes(q) ||
+            (t.album || '').toLowerCase().includes(q)
+          );
+        }
+        return list;
+      }
+    }
+
     if (this.activeTab === 'offline') {
       list = list.filter((t) => t.isCached);
     }
@@ -304,7 +342,16 @@ export class UIController {
     const activeScrollEl = container.querySelector('.overflow-y-auto') || container;
     const prevScrollTop = activeScrollEl.scrollTop;
 
-    if (this.activeTab === 'artists' && !this.filterArtist) {
+    if (this.activeTab === 'playlist' && this.activePlaylistId) {
+      const pl = this.playlists.find((p) => p.id === this.activePlaylistId);
+      if (pl) {
+        const plTracks = pl.trackIds
+          .map((id) => this.allTracks.find((t) => t.id === id))
+          .filter(Boolean);
+        const currentId = this.engine.currentTrack?.id;
+        container.innerHTML = renderPlaylistView(pl, plTracks, currentId, this.engine.isPlaying);
+      }
+    } else if (this.activeTab === 'artists' && !this.filterArtist) {
       container.innerHTML = renderArtistsView(this.allTracks);
     } else if (this.activeTab === 'albums' && !this.filterAlbum) {
       container.innerHTML = renderAlbumsView(this.allTracks);
@@ -586,6 +633,39 @@ export class UIController {
           return;
         }
 
+        // Play All Playlist
+        const playAllBtn = e.target.closest('#btn-play-all-playlist');
+        if (playAllBtn) {
+          const plId = playAllBtn.getAttribute('data-playlist-id');
+          const pl = this.playlists.find((p) => p.id === plId);
+          if (pl) {
+            const plTracks = pl.trackIds
+              .map((id) => this.allTracks.find((t) => t.id === id))
+              .filter(Boolean);
+            if (plTracks.length > 0) {
+              this.engine.setPlaylist(plTracks, 0);
+            }
+          }
+          return;
+        }
+
+        // Back from playlist view
+        const backBtn = e.target.closest('#btn-back-playlists');
+        if (backBtn) {
+          this.activePlaylistId = null;
+          this.setActiveTab('all');
+          return;
+        }
+
+        // Playlist action menu (rename, delete)
+        const plActionsBtn = e.target.closest('#btn-playlist-actions');
+        if (plActionsBtn) {
+          e.stopPropagation();
+          const plId = plActionsBtn.getAttribute('data-playlist-id');
+          this.openPlaylistActionMenu(plId, plActionsBtn);
+          return;
+        }
+
         // Upload audio files button
         if (e.target.closest('#btn-upload-tracks')) {
           if (this.isBatchUploading) {
@@ -613,6 +693,20 @@ export class UIController {
         }
       });
     }
+
+    // --- Playlist sidebar events ---
+    document.getElementById('btn-create-playlist')?.addEventListener('click', () => {
+      this.startInlinePlaylistCreate();
+    });
+
+    document.getElementById('sidebar-playlists')?.addEventListener('click', (e) => {
+      const item = e.target.closest('.playlist-item');
+      if (item) {
+        const plId = item.getAttribute('data-playlist-id');
+        this.activePlaylistId = plId;
+        this.setActiveTab('playlist');
+      }
+    });
 
     // Batch Upload Input & Drag-and-Drop on Main Workspace
     const uploadInput = document.getElementById('upload-audio-input');
@@ -908,13 +1002,31 @@ export class UIController {
           await this.handleRemoveTrackCache(trackId);
         } else if (action === 'delete-track') {
           this.promptDeleteTrack(trackId);
+        } else if (action === 'rename-playlist') {
+          this.promptRenamePlaylist(item.getAttribute('data-id'));
+        } else if (action === 'delete-playlist') {
+          this.promptDeletePlaylist(item.getAttribute('data-id'));
+        } else if (action === 'remove-from-playlist') {
+          const plId = item.getAttribute('data-playlist-id');
+          await this.removeTrackFromPlaylist(plId, trackId);
         }
       });
     }
 
+    // Add to playlist from track action menu
+    document.addEventListener('click', async (e) => {
+      const addBtn = e.target.closest('.menu-add-to-playlist');
+      if (addBtn) {
+        const plId = addBtn.getAttribute('data-playlist-id');
+        const trackId = addBtn.getAttribute('data-track-id');
+        await this.addTrackToPlaylist(plId, trackId);
+        this.closeTrackActionMenu();
+      }
+    });
+
     // Close floating action menu on outside clicks and scroll
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('#track-action-menu') && !e.target.closest('.btn-track-menu')) {
+      if (!e.target.closest('#track-action-menu') && !e.target.closest('.btn-track-menu') && !e.target.closest('#btn-playlist-actions')) {
         this.closeTrackActionMenu();
       }
     });
@@ -975,6 +1087,9 @@ export class UIController {
   }
 
   setActiveTab(tab) {
+    if (tab !== 'playlist') {
+      this.activePlaylistId = null;
+    }
     this.activeTab = tab;
     this.filterArtist = null;
     this.filterAlbum = null;
@@ -982,7 +1097,15 @@ export class UIController {
     document.querySelectorAll('.nav-tab').forEach((el) => {
       const t = el.getAttribute('data-tab');
       const isDesktop = Boolean(el.closest('aside'));
-      const isActive = t === tab;
+      const isPlaylistItem = el.classList.contains('playlist-item');
+      const isActive = isPlaylistItem
+        ? (tab === 'playlist' && el.getAttribute('data-playlist-id') === this.activePlaylistId)
+        : (t === tab);
+
+      if (isPlaylistItem) {
+        // Playlist items are re-rendered by renderSidebarPlaylists below
+        return;
+      }
 
       if (isDesktop) {
         if (isActive) {
@@ -999,6 +1122,7 @@ export class UIController {
       }
     });
 
+    this.updateSidebarPlaylists();
     this.renderMainContent();
   }
 
@@ -1140,6 +1264,29 @@ export class UIController {
 
     const safeTrackId = escapeHtml(track.id);
     menu.innerHTML = `
+      ${this.activeTab === 'playlist' && this.activePlaylistId ? `
+        <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="remove-from-playlist" data-id="${safeTrackId}" data-playlist-id="${escapeHtml(this.activePlaylistId)}">
+          <i data-lucide="list-x" class="w-3.5 h-3.5 text-zinc-400"></i>
+          <span>Hapus dari Playlist</span>
+        </button>` : ''}
+      ${this.playlists.length > 0 ? `
+        <div class="relative group/pl">
+          <button class="menu-action-item flex items-center justify-between w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer">
+            <span class="flex items-center gap-2.5">
+              <i data-lucide="list-music" class="w-3.5 h-3.5 text-zinc-400"></i>
+              <span>Tambah ke Playlist</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-3 h-3 text-zinc-500"></i>
+          </button>
+          <div class="hidden group-hover/pl:block absolute left-full top-0 ml-1 w-44 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl py-1.5 z-50">
+            ${this.playlists.map((pl) => `
+              <button class="menu-add-to-playlist flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs transition cursor-pointer" data-playlist-id="${escapeHtml(pl.id)}" data-track-id="${safeTrackId}">
+                ${escapeHtml(pl.name)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
       ${
         track.isCached
           ? `<button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="remove-cache" data-id="${safeTrackId}">
@@ -1168,7 +1315,7 @@ export class UIController {
     if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
 
     let top = rect.bottom + 4;
-    const estimatedHeight = track.isCached ? 115 : 80;
+    const estimatedHeight = (track.isCached ? 115 : 80) + (this.playlists.length > 0 ? 36 : 0) + (this.activeTab === 'playlist' && this.activePlaylistId ? 36 : 0);
     if (top + estimatedHeight > window.innerHeight - 10) {
       top = rect.top - estimatedHeight - 4;
     }
@@ -1184,6 +1331,196 @@ export class UIController {
       menu.classList.add('hidden');
     }
     this.activeMenuTrackId = null;
+  }
+
+  // ================= PLAYLIST METHODS =================
+
+  async loadPlaylists() {
+    this.playlists = await getAllPlaylists();
+    this.updateSidebarPlaylists();
+  }
+
+  updateSidebarPlaylists() {
+    const container = document.getElementById('playlist-list-container');
+    if (!container) return;
+    container.innerHTML = renderSidebarPlaylists(this.playlists, this.activePlaylistId);
+    refreshLucideIcons();
+  }
+
+  startInlinePlaylistCreate() {
+    if (this.isCreatingPlaylist) return;
+    this.isCreatingPlaylist = true;
+
+    const container = document.getElementById('playlist-list-container');
+    if (!container) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Nama playlist...';
+    input.className = 'w-full px-3 py-2 rounded-lg bg-zinc-800 border border-emerald-500/40 text-sm text-white placeholder-zinc-500 outline-none focus:border-emerald-500';
+    input.maxLength = 100;
+
+    container.prepend(input);
+    input.focus();
+
+    const cleanup = () => {
+      this.isCreatingPlaylist = false;
+      input.remove();
+    };
+
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        const name = input.value.trim();
+        if (!name) { cleanup(); return; }
+        const pl = {
+          id: crypto.randomUUID(),
+          name,
+          trackIds: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        await savePlaylist(pl);
+        cleanup();
+        await this.loadPlaylists();
+        showToast(`Playlist "${name}" dibuat.`, 'success');
+      } else if (e.key === 'Escape') {
+        cleanup();
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => { if (this.isCreatingPlaylist) cleanup(); }, 150);
+    });
+  }
+
+  openPlaylistActionMenu(playlistId, triggerBtn) {
+    const menu = document.getElementById('track-action-menu');
+    if (!menu) return;
+    const pl = this.playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+
+    menu.innerHTML = `
+      <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer" data-action="rename-playlist" data-id="${escapeHtml(playlistId)}">
+        <i data-lucide="pencil" class="w-3.5 h-3.5 text-zinc-400"></i>
+        <span>Ubah Nama</span>
+      </button>
+      <button class="menu-action-item flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition cursor-pointer" data-action="delete-playlist" data-id="${escapeHtml(playlistId)}">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400"></i>
+        <span>Hapus Playlist</span>
+      </button>
+    `;
+
+    const rect = triggerBtn.getBoundingClientRect();
+    const menuWidth = 208;
+    let left = rect.right - menuWidth;
+    if (left < 10) left = 10;
+    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
+    let top = rect.bottom + 4;
+    if (top + 80 > window.innerHeight - 10) top = rect.top - 80 - 4;
+    menu.style.top = `${Math.max(10, top)}px`;
+    menu.style.left = `${left}px`;
+    menu.classList.remove('hidden');
+    refreshLucideIcons();
+  }
+
+  async addTrackToPlaylist(playlistId, trackId) {
+    const pl = this.playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+    if (pl.trackIds.includes(trackId)) {
+      showToast('Lagu sudah ada di playlist ini.', 'info');
+      return;
+    }
+    pl.trackIds.push(trackId);
+    pl.updatedAt = Date.now();
+    await savePlaylist(pl);
+    await this.loadPlaylists();
+    const track = this.allTracks.find((t) => t.id === trackId);
+    showToast(`"${track?.title || track?.name || 'Lagu'}" ditambahkan ke "${pl.name}".`, 'success');
+    if (this.activePlaylistId === playlistId) {
+      this.renderMainContent();
+    }
+  }
+
+  async removeTrackFromPlaylist(playlistId, trackId) {
+    const pl = this.playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+    pl.trackIds = pl.trackIds.filter((id) => id !== trackId);
+    pl.updatedAt = Date.now();
+    await savePlaylist(pl);
+    await this.loadPlaylists();
+    showToast('Lagu dihapus dari playlist.', 'info');
+    if (this.activePlaylistId === playlistId) {
+      this.renderMainContent();
+    }
+  }
+
+  promptRenamePlaylist(playlistId) {
+    const pl = this.playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-modal-title');
+    const descEl = document.getElementById('confirm-modal-desc');
+    const btnAction = document.getElementById('btn-confirm-action');
+    if (!modal) return;
+
+    if (titleEl) titleEl.textContent = 'Ubah Nama Playlist';
+    if (descEl) {
+      descEl.innerHTML = `<input id="rename-playlist-input" type="text" value="${escapeHtml(pl.name)}" maxlength="100" class="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-sm text-white outline-none focus:border-emerald-500 mt-1">`;
+    }
+    if (btnAction) {
+      btnAction.textContent = 'Simpan';
+      btnAction.className = 'px-3.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold border border-emerald-500/30 transition cursor-pointer';
+    }
+
+    this.confirmActionCallback = async () => {
+      const input = document.getElementById('rename-playlist-input');
+      const newName = input?.value?.trim();
+      if (!newName) return;
+      pl.name = newName;
+      pl.updatedAt = Date.now();
+      await savePlaylist(pl);
+      await this.loadPlaylists();
+      this.renderMainContent();
+      showToast(`Playlist diubah menjadi "${newName}".`, 'success');
+    };
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => document.getElementById('rename-playlist-input')?.focus(), 100);
+  }
+
+  promptDeletePlaylist(playlistId) {
+    const pl = this.playlists.find((p) => p.id === playlistId);
+    if (!pl) return;
+
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-modal-title');
+    const descEl = document.getElementById('confirm-modal-desc');
+    const btnAction = document.getElementById('btn-confirm-action');
+    if (!modal) return;
+
+    if (titleEl) titleEl.textContent = 'Hapus Playlist';
+    if (descEl) {
+      descEl.textContent = `Apakah Anda yakin ingin menghapus playlist "${pl.name}"? Lagu-lagu di dalamnya tetap ada di pustaka.`;
+    }
+    if (btnAction) {
+      btnAction.textContent = 'Hapus';
+      btnAction.className = 'px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold border border-rose-500/30 transition cursor-pointer';
+    }
+
+    this.confirmActionCallback = async () => {
+      await deletePlaylist(playlistId);
+      if (this.activePlaylistId === playlistId) {
+        this.activePlaylistId = null;
+        this.setActiveTab('all');
+      }
+      await this.loadPlaylists();
+      showToast(`Playlist "${pl.name}" dihapus.`, 'info');
+    };
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
   }
 
   hasActiveTransferOrSync() {
@@ -1244,7 +1581,12 @@ export class UIController {
       this.engine.currentIndex = -1;
     }
     this.resetPlayerBar();
+    if (this.activeTab === 'playlist') {
+      this.activePlaylistId = null;
+      this.setActiveTab('all');
+    }
     await this.reloadTracks();
+    await this.loadPlaylists();
     await this.updateStorageInfo();
     this.updateOfflineBadge();
     this.renderMainContent();

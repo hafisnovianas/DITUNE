@@ -60,6 +60,17 @@ export function renderAppShell() {
           </button>
         </nav>
 
+        <!-- Playlist Section -->
+        <div id="sidebar-playlists" class="mt-4 flex flex-col gap-1">
+          <div class="flex items-center justify-between px-3 mb-1">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Playlist</p>
+            <button id="btn-create-playlist" class="text-zinc-500 hover:text-white p-0.5 rounded transition cursor-pointer" title="Buat Playlist Baru">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <div id="playlist-list-container"></div>
+        </div>
+
         <!-- Footer Settings -->
         <button id="btn-open-settings" class="mt-auto flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition">
           <i data-lucide="settings" class="w-4 h-4"></i>
@@ -420,64 +431,7 @@ export function renderTrackList(tracks = [], currentTrackId = null, isPlaying = 
     `;
   }
 
-  const rows = tracks.map((track, idx) => {
-    const isActive = track.id === currentTrackId;
-    const activeClass = isActive ? 'bg-zinc-800/80 text-emerald-400' : 'hover:bg-zinc-900/60 text-zinc-300';
-    const activeText = isActive ? 'text-emerald-400' : 'text-white';
-    const safeTrackId = escapeHtml(track.id);
-
-    const cacheIcon = track.isCached
-      ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20" title="Tersimpan di IndexedDB">
-           <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
-           <span class="hidden sm:inline">Offline</span>
-         </span>`
-      : `<button class="btn-cache-track text-zinc-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-zinc-800 transition" data-id="${safeTrackId}" title="Unduh ke Cache Offline">
-           <i data-lucide="download" class="w-4 h-4"></i>
-         </button>`;
-
-    return `
-      <div 
-        class="track-row group grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
-        data-id="${safeTrackId}"
-      >
-        <!-- Index / Play indicator -->
-        <div class="track-play-btn group/btn w-8 h-8 flex items-center justify-center -ml-1 rounded-lg hover:bg-zinc-800/60 transition text-center flex-shrink-0 cursor-pointer" data-id="${safeTrackId}">
-          ${
-            isActive && isPlaying
-              ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover/btn:hidden" title="Sedang memutar">
-                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-1"></span>
-                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-2"></span>
-                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-3"></span>
-                   <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-4"></span>
-                 </div>
-                 <i data-lucide="pause" class="w-4 h-4 text-emerald-400 hidden group-hover/btn:inline-block ml-auto mr-auto fill-current"></i>`
-              : `<span class="text-xs text-zinc-400 group-hover:hidden font-mono">${idx + 1}</span>
-                 <i data-lucide="play" class="w-4 h-4 text-white hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
-          }
-        </div>
-
-        <!-- Title & Artist -->
-        <div class="min-w-0 pr-2">
-          <p class="text-sm font-semibold truncate ${activeText}">${escapeHtml(track.title || track.name)}</p>
-          <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.artist || 'Unknown Artist')}</p>
-        </div>
-
-        <!-- Album -->
-        <div class="hidden md:block min-w-0 pr-2">
-          <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.album || 'Unknown Album')}</p>
-        </div>
-
-        <!-- Cache Status, Duration & Action Menu -->
-        <div class="track-cache-status flex items-center justify-end gap-2.5 min-w-0 pr-1">
-          ${cacheIcon}
-          <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${formatDuration(track.duration)}</span>
-          <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${safeTrackId}" title="Opsi Lagu">
-            <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
-          </button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  const rows = tracks.map((track, idx) => buildTrackRow(track, idx, currentTrackId, isPlaying)).join('');
 
   return `
     <div class="flex-1 flex flex-col min-h-0 h-full">
@@ -708,6 +662,161 @@ export function removeProgressToast(id) {
     toast.classList.add('opacity-0', 'translate-x-4');
     toast._removeTimer = setTimeout(() => toast.remove(), 300);
   }
+}
+
+// ================= PLAYLIST COMPONENTS =================
+
+/**
+ * Build a single track row HTML (shared by renderTrackList and renderPlaylistView)
+ */
+function buildTrackRow(track, idx, currentTrackId, isPlaying) {
+  const isActive = track.id === currentTrackId;
+  const activeClass = isActive ? 'bg-zinc-800/80 text-emerald-400' : 'hover:bg-zinc-900/60 text-zinc-300';
+  const activeText = isActive ? 'text-emerald-400' : 'text-white';
+  const safeTrackId = escapeHtml(track.id);
+
+  const cacheIcon = track.isCached
+    ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20" title="Tersimpan di IndexedDB">
+         <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+         <span class="hidden sm:inline">Offline</span>
+       </span>`
+    : `<button class="btn-cache-track text-zinc-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-zinc-800 transition" data-id="${safeTrackId}" title="Unduh ke Cache Offline">
+         <i data-lucide="download" class="w-4 h-4"></i>
+       </button>`;
+
+  return `
+    <div 
+      class="track-row group grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 px-3 py-2.5 rounded-xl transition cursor-pointer ${activeClass}" 
+      data-id="${safeTrackId}"
+    >
+      <!-- Index / Play indicator -->
+      <div class="track-play-btn group/btn w-8 h-8 flex items-center justify-center -ml-1 rounded-lg hover:bg-zinc-800/60 transition text-center flex-shrink-0 cursor-pointer" data-id="${safeTrackId}">
+        ${
+          isActive && isPlaying
+            ? `<div class="flex items-end justify-center gap-0.5 h-3.5 group-hover/btn:hidden" title="Sedang memutar">
+                 <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-1"></span>
+                 <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-2"></span>
+                 <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-3"></span>
+                 <span class="w-0.5 sm:w-1 bg-emerald-400 rounded-full h-full animate-eq-4"></span>
+               </div>
+               <i data-lucide="pause" class="w-4 h-4 text-emerald-400 hidden group-hover/btn:inline-block ml-auto mr-auto fill-current"></i>`
+            : `<span class="text-xs text-zinc-400 group-hover:hidden font-mono">${idx + 1}</span>
+               <i data-lucide="play" class="w-4 h-4 text-white hidden group-hover:inline-block ml-auto mr-auto fill-current"></i>`
+        }
+      </div>
+
+      <!-- Title & Artist -->
+      <div class="min-w-0 pr-2">
+        <p class="text-sm font-semibold truncate ${activeText}">${escapeHtml(track.title || track.name)}</p>
+        <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.artist || 'Unknown Artist')}</p>
+      </div>
+
+      <!-- Album -->
+      <div class="hidden md:block min-w-0 pr-2">
+        <p class="text-xs text-zinc-400 truncate">${escapeHtml(track.album || 'Unknown Album')}</p>
+      </div>
+
+      <!-- Cache Status, Duration & Action Menu -->
+      <div class="track-cache-status flex items-center justify-end gap-2.5 min-w-0 pr-1">
+        ${cacheIcon}
+        <span class="text-xs text-zinc-400 font-mono w-10 text-right flex-shrink-0">${formatDuration(track.duration)}</span>
+        <button class="btn-track-menu p-1 text-zinc-500 hover:text-white rounded-md hover:bg-zinc-800 transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer flex-shrink-0" data-id="${safeTrackId}" title="Opsi Lagu">
+          <i data-lucide="more-vertical" class="w-4 h-4 pointer-events-none"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render sidebar playlist list
+ */
+export function renderSidebarPlaylists(playlists = [], activePlaylistId = null) {
+  if (playlists.length === 0) {
+    return `<p class="px-3 text-xs text-zinc-600 italic">Belum ada playlist</p>`;
+  }
+
+  return [...playlists]
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .map((pl) => {
+      const isActive = pl.id === activePlaylistId;
+      const cls = isActive
+        ? 'text-emerald-400 bg-zinc-800/60'
+        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40';
+      return `
+        <button data-tab="playlist" data-playlist-id="${escapeHtml(pl.id)}"
+          class="nav-tab playlist-item flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition w-full text-left ${cls}">
+          <i data-lucide="list-music" class="w-4 h-4 flex-shrink-0"></i>
+          <span class="truncate">${escapeHtml(pl.name)}</span>
+          <span class="ml-auto text-xs text-zinc-500 font-mono flex-shrink-0">${pl.trackIds.length}</span>
+        </button>`;
+    })
+    .join('');
+}
+
+/**
+ * Render playlist detail view (header + track list)
+ */
+export function renderPlaylistView(playlist, tracks = [], currentTrackId = null, isPlaying = false) {
+  if (!playlist) return '';
+
+  const header = `
+    <div class="flex-shrink-0 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <button id="btn-back-playlists" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition cursor-pointer flex-shrink-0" title="Kembali">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          </button>
+          <h2 id="playlist-title-display" class="text-2xl font-black text-white truncate">${escapeHtml(playlist.name)}</h2>
+        </div>
+        <p class="text-xs text-zinc-400 mt-0.5 pl-8">${tracks.length} lagu</p>
+      </div>
+      <div class="flex items-center gap-2">
+        ${tracks.length > 0 ? `
+          <button id="btn-play-all-playlist" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-xs font-semibold text-zinc-950 transition cursor-pointer" data-playlist-id="${escapeHtml(playlist.id)}">
+            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+            <span>Putar Semua</span>
+          </button>` : ''}
+        <button id="btn-playlist-actions" class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-zinc-800 transition cursor-pointer" data-playlist-id="${escapeHtml(playlist.id)}" title="Opsi Playlist">
+          <i data-lucide="more-vertical" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>`;
+
+  if (tracks.length === 0) {
+    return `
+      <div class="flex-1 flex flex-col min-h-0 h-full">
+        ${header}
+        <div class="flex flex-col items-center justify-center py-20 text-center text-zinc-400 px-4">
+          <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 text-zinc-600">
+            <i data-lucide="list-music" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-lg font-bold text-zinc-200">Playlist Kosong</h3>
+          <p class="text-sm max-w-md text-zinc-400 mt-1">Tambahkan lagu dari menu ⋮ pada daftar lagu.</p>
+        </div>
+      </div>`;
+  }
+
+  const rows = tracks.map((track, idx) => buildTrackRow(track, idx, currentTrackId, isPlaying)).join('');
+
+  return `
+    <div class="flex-1 flex flex-col min-h-0 h-full">
+      ${header}
+
+      <!-- Fixed Table Header -->
+      <div class="flex-shrink-0 py-2.5 px-3 pr-5 grid grid-cols-[2rem_1fr_9.5rem] md:grid-cols-[2rem_1fr_26%_9.5rem] items-center gap-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-800/80 bg-zinc-950">
+        <span class="text-center">#</span>
+        <span class="truncate">Judul</span>
+        <span class="hidden md:block truncate">Album</span>
+        <span class="text-right pr-7">Durasi</span>
+      </div>
+
+      <!-- Scrollable Track Rows -->
+      <div id="track-list-scroll" class="flex-1 overflow-y-auto space-y-1 pt-2 pb-6 pr-2 min-h-0">
+        ${rows}
+      </div>
+    </div>
+  `;
 }
 
 export function escapeHtml(str = '') {

@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'ditune_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 let openPromise = null;
@@ -51,6 +51,11 @@ export function openDB() {
       // App settings
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
+      }
+
+      // Custom playlists (v2)
+      if (!db.objectStoreNames.contains('playlists')) {
+        db.createObjectStore('playlists', { keyPath: 'id' });
       }
     };
 
@@ -378,6 +383,44 @@ export async function clearIgnoredTracks() {
   return true;
 }
 
+// ================= PLAYLISTS =================
+
+export async function getAllPlaylists() {
+  const store = await getStore('playlists');
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function getPlaylist(id) {
+  const store = await getStore('playlists');
+  return new Promise((resolve, reject) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function savePlaylist(playlist) {
+  const store = await getStore('playlists', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.put(playlist);
+    req.onsuccess = () => resolve(true);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function deletePlaylist(id) {
+  const store = await getStore('playlists', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve(true);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
 // ================= STORAGE STATS & MAINTENANCE =================
 
 export async function getStorageStats() {
@@ -458,10 +501,11 @@ export async function clearAllCache() {
 }
 
 export async function clearAllData() {
-  const tx = await createTransaction(['tracks', 'audio_blobs', 'covers'], 'readwrite');
+  const tx = await createTransaction(['tracks', 'audio_blobs', 'covers', 'playlists'], 'readwrite');
   tx.objectStore('tracks').clear();
   tx.objectStore('audio_blobs').clear();
   tx.objectStore('covers').clear();
+  tx.objectStore('playlists').clear();
 
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve(true);
